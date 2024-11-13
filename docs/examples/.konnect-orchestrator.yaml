@@ -1,0 +1,119 @@
+---
+teams:
+  core:
+    description: Core team description 
+    users:
+      - "user1@kongfinancial.com"
+      - "user2@kongfinancial.com"
+  credit:
+    description: Credit team description 
+    users:
+      - "user1@kongfinancial.com"
+      - "user3@kongfinancial.com"
+
+services:
+  "KongFinancial/user":
+    name: user
+    vcs: "https://github.com/KongFinancial/user"
+    description: Kong Financial User management service
+    team: core
+    # The idea with spec-path is a pointer to an OAS3 spec file, which is used
+    # as a basis for GS configuration generation by the central automation
+    spec-path: openapi.yaml # relative to the vcs root 
+    # The idea with kong-path is a pointer to a folder that contains 
+    # service specific Kong configuration patches, applied by the central automation
+    kong-path: kong         # relative to the vcs root
+  "KongFinancial/account":
+    vcs: "https://github.com/KongFinancial/account"
+    name: account
+    description: Kong Financial Account management service
+    team: core
+  # If we make the service keys support a hierarchy, we can then
+  # support service specific patches within the management repo.
+  # In a well known folder we can have a structure that mirrors these names
+  # which includes patch / overlay files applied prior to syncronizing with GW / Mesh runtimes.
+  # Users could, of course, just make this flat with a simple name
+  # We could also make thise explicit with a configuration key here.
+  
+# The organizations field defines the topology of the managed services across 
+# one or more Konnect Organizations and allows the orchestrator to
+# manage consistent resource names and configurations
+# across various service categories
+organizations:
+  # Kong Financial uses a single org, but the orchestrator can support multiple.
+  # This key should be the same as the organization Name given at creation, 
+  #   but Konnect orgs are identified by the id when using the API
+  main:
+    id: 12345678-1234-1234-1234-123456789abc
+    teams:
+      - core
+      - credit
+    # Environments are opinionated deployment stages for the services. 
+    # these determine RBAC controls and other policies (TBD).
+    environments:
+      # Environment patches could be applied on top of the path of the service name 
+      # Resources will be managed within each configured region 
+      dev:
+        regions:
+          - us
+        services:
+          "KongFinancial/user":
+            branch: dev
+          "KongFinancial/account":
+            branch: dev
+      prd:
+        regions:
+          - us
+          - eu
+        services:
+          "KongFinancial/user":
+            branch: main
+          "KongFinancial/account":
+            branch: main
+
+
+# The following are the resources managed by the orchestrator based on the above configuration
+
+# Organization main (123456789abc)
+# ------------------------------
+#   Global
+#     Organization
+#       Teams
+#         - name: core
+#           description: Core team description
+#         - name: credit
+#           description: Credit team description
+#       Users # Invites are sent to the following users (once) 
+#         - email: user1@kongfinancial.com 
+#           team membership: core, credit
+#         - email: user2@kongfinancial.com
+#           team membership: core
+#         - email: user3@kongfinancial.com
+#           team membership: credit
+#       System Accounts
+#         # Maybe for the orchestrator itself?
+#       Audit Logs Setup
+#         # Can we do anything for the user here? 
+#       Settings
+#         # Can we do anything for the user here?
+#    
+#   US Region
+#     Gateway Manager
+#       Control Planes 
+#       - main-dev
+#       - main-prd
+#     Service Catalog
+#       KongFinancial/user:
+#         description:
+#         name: 
+#         integrations:
+#           GitHub:
+#             repo: github.com/KongFinancial/user
+#     API Products:
+#       KongFinancial/user:
+#     Dev Portal:
+#       KongFinancial/user:
+#   EU Region
+#     Gateway Manager
+#       Control Planes
+#       - main-prd
