@@ -3,6 +3,7 @@ package team
 import (
 	"context"
 	"fmt"
+
 	kk "github.com/Kong/sdk-konnect-go"
 	"github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/Kong/sdk-konnect-go/models/operations"
@@ -18,8 +19,8 @@ type TeamService interface {
 
 // Team represents a team in the organization, with a name and description.
 type Team struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
+	Name        string `json:"name" yaml:"name"`
+	Description string `json:"description" yaml:"description"`
 }
 
 func ApplyTeam(ctx context.Context, svc TeamService, config Team) error {
