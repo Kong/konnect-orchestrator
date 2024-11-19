@@ -12,3 +12,7 @@ packages:
   github.com/Kong/konnect-orchestrator/internal/organization/team:
     interfaces:
       TeamService:
+  github.com/Kong/konnect-orchestrator/internal/organization/user:
+    interfaces:
+      UserService:
+      InviteService:

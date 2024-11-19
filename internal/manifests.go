@@ -39,6 +39,7 @@ func ParseTeams(teams map[string]TeamManifest) []team.Team {
 		result = append(result, team.Team{
 			Name:        name,
 			Description: config.Description,
+			Users:       config.Users,
 		})
 	}
 	return result

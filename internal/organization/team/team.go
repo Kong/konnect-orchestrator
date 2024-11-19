@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Kong/konnect-orchestrator/internal/organization/user"
 	kk "github.com/Kong/sdk-konnect-go"
 	"github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/Kong/sdk-konnect-go/models/operations"
@@ -19,11 +20,12 @@ type TeamService interface {
 
 // Team represents a team in the organization, with a name and description.
 type Team struct {
-	Name        string `json:"name" yaml:"name"`
-	Description string `json:"description" yaml:"description"`
+	Name        string   `json:"name" yaml:"name"`
+	Description string   `json:"description" yaml:"description"`
+	Users       []string `json:"users" yaml:"users"`
 }
 
-func ApplyTeam(ctx context.Context, svc TeamService, config Team) error {
+func ApplyTeam(ctx context.Context, svc TeamService, userSvc user.UserService, inviteSvc user.InviteService, config Team) error {
 	// Step 1: Check if team already exists
 	equalsFilter := components.CreateStringFieldEqualsFilterStr(config.Name)
 
@@ -67,6 +69,13 @@ func ApplyTeam(ctx context.Context, svc TeamService, config Team) error {
 		})
 		if err != nil {
 			return fmt.Errorf("failed to update team: %w", err)
+		}
+	}
+
+	// Step 3: Apply users if any are specified
+	if len(config.Users) > 0 {
+		if err := user.ApplyUsers(ctx, userSvc, inviteSvc, config.Users); err != nil {
+			return fmt.Errorf("failed to apply users: %w", err)
 		}
 	}
 
