@@ -11,9 +11,16 @@ type OrchestratorManifest struct {
 
 // OrganizationManifest represents an organization's configuration
 type OrganizationManifest struct {
-	Name        string   `json:"name,omitempty" yaml:"name,omitempty"`
-	Description string   `json:"description,omitempty" yaml:"description,omitempty"`
-	Teams       []string `json:"teams,omitempty" yaml:"teams,omitempty"`
+	Name        string      `json:"name,omitempty" yaml:"name,omitempty"`
+	Description string      `json:"description,omitempty" yaml:"description,omitempty"`
+	Teams       []string    `json:"teams,omitempty" yaml:"teams,omitempty"`
+	AccessToken AccessToken `json:"access-token" yaml:"access-token"`
+}
+
+// AccessToken represents the configuration for organization access tokens
+type AccessToken struct {
+	Type  string `json:"type" yaml:"type"`
+	Value string `json:"value" yaml:"value"`
 }
 
 // TeamManifest represents a team's configuration
