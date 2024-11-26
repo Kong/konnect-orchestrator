@@ -1,12 +1,61 @@
 ---  
-# The organizations field defines the topology of the managed services across 
-# one or more Konnect Organizations and allows the orchestrator to
+# teams define the names, description, and members of engineering groups.
+#   teams are associated with services. These are the applications they build
+#   and maintain. 
+teams:
+  core:
+    description: Kong Financial Core team
+    users:
+      - "rick.spurgeon+kongfinancial1@konghq.com"
+    # services are the applications this team builds and maintains.
+    #   Each service provides sufficient metadata to allow the orchestrator
+    #   to apply service specific configurations and policies.
+    services:
+      KongFinancial/user:
+        # The service key supports a heirarchical name.
+        # This can support service specific patches by allowing patches to be 
+        # specified in a matching folder structure.
+        name: user
+        vcs: "https://github.com/KongFinancial/user"
+        description: Kong Financial User management service
+        # The idea with spec-path is a pointer to an OAS3 spec file, which is used
+        # as a basis for GS configuration generation by the central automation
+        spec-path: openapi.yaml # relative to the vcs root 
+        # The idea with kong-path is a pointer to a folder that contains 
+        # service specific Kong configuration patches, applied by the central team's
+        kong-path: kong         # relative to the vcs root
+      KongFinancial/account:
+        name: account
+        vcs: "https://github.com/KongFinancial/account"
+        description: Kong Financial Account management service
+        # What happens if there is no spec-path?
+        # spec-path: openapi.yaml
+  credit:
+    description: Kong Financial Credit team
+    users:
+      - "rick.spurgeon+kongfinancial1@konghq.com"
+      - "rick.spurgeon+kongfinancial2@konghq.com"
+    services:
+      KongFinancial/retail-cards:
+        name: retail-cards
+        vcs: https://github.com/KongFinancial/retail-cards 
+  bb-fixed-income:
+    description: Bonobos Bank Fixed Income team
+    users:
+      - "rick.spurgeon+bb1@konghq.com"
+      - "rick.spurgeon+bb2@konghq.com"
+    services:
+      BonobosBank/fixed-income:
+        name: bb-fi
+        vcs: https://github.com/BonobosBank/fixed-income 
+
+# The organizations field defines the topology of the managed teams and services across 
+# one or more Konnect Organizations. This allows the orchestrator to
 # manage consistent resource names and configurations
-# across various service categories
 organizations:
 
-  # This key is arbitrary as it relates to Konnect, but it's recommended to match
-  # the organization name given at creation.
+  # This key is arbitrary as it relates to Konnect, but it's recommended to relate to 
+  # the organization name 
   kong-financial:
     # API calls are scoped to organizations via the access-token used,
     # thus, we don't need to track the org ID here.
@@ -21,33 +70,55 @@ organizations:
       # ---
       # type: literal # not recommended to prevent accidental exposure
       # value: pat_ajbjdkfjhfhijajaj
-    teams:
-      - core
-      - credit
+    environments:
+      # `type` is required and can be either: `DEV` or `PROD`
+      #   These values are well known to the orchestrator and are used to determine the 
+      #   policies applied to resources
+      dev:
+        type: DEV
+        teams:
+          core:
+            services:
+              - KongFinancial/user
+              - KongFinancial/account
+          credit:
+            services:
+              - KongFinancial/retail-cards
+      prd:
+        type: PROD
+        teams:
+          core:
+            services:
+              - KongFinancial/user
+              - KongFinancial/account
+          credit:
+            services:
+              - KongFinancial/retail-cards
 
-  # Let's pretend this is an aquired bank that the Kong Financial platform team is integrating
+  # Let's pretend this is an acquired bank that the Kong Financial platform team is integrating
   bonobos-bank: 
     access-token:
       type: file
       value: $HOME/.konnect/20241120-bb-ko.spat 
 
-    teams:
-      - core
-      - bb-fixed-income
-
-teams:
-  core:
-    description: Kong Financial Core team
-    users:
-      - "core.user1@example.com"
-      - "core.user2@example.com"
-  credit:
-    description: Kong Financial Credit team
-    users:
-      - "credit.user1@example.com"
-      - "credit.user2@example.com"
-  bb-fixed-income:
-    description: Bonobos Bank Fixed Income team
-    users:
-      - "bb.fi.user1@example.com"
-      - "bb.fi.user2@example.com"
+    environments:
+      dev:
+        type: DEV
+        teams:
+          core:
+            services:
+              - KongFinancial/user
+              - KongFinancial/account
+          bb-fixed-income:
+            services:
+              - BonobosBank/fixed-income
+      prd:
+        type: PROD
+        teams:
+          core:
+            services:
+              - KongFinancial/user
+              - KongFinancial/account
+          bb-fixed-income:
+            services:
+              - BonobosBank/fixed-income

@@ -23,11 +23,21 @@ type TeamMembershipService interface {
 	AddUserToTeam(ctx context.Context, teamID string, addUserToTeam *components.AddUserToTeam, opts ...operations.Option) (*operations.AddUserToTeamResponse, error)
 }
 
-// Team represents a team in the organization, with a name and description.
+// Team represents a team in the organization
 type Team struct {
-	Name        string   `json:"name" yaml:"name"`
-	Description string   `json:"description" yaml:"description"`
-	Users       []string `json:"users" yaml:"users"`
+	Name        string                   `json:"name" yaml:"name"`
+	Description string                   `json:"description" yaml:"description"`
+	Users       []string                 `json:"users" yaml:"users"`
+	Services    map[string]ServiceConfig `json:"services" yaml:"services"`
+}
+
+// ServiceConfig represents a service configuration
+type ServiceConfig struct {
+	Name        string `json:"name" yaml:"name"`
+	VCS         string `json:"vcs" yaml:"vcs"`
+	Description string `json:"description" yaml:"description"`
+	SpecPath    string `json:"spec-path" yaml:"spec-path"`
+	KongPath    string `json:"kong-path" yaml:"kong-path"`
 }
 
 func ApplyTeam(ctx context.Context,
@@ -36,45 +46,26 @@ func ApplyTeam(ctx context.Context,
 	userSvc user.UserService,
 	inviteSvc user.InviteService,
 	teamConfig Team) error {
-	// Step 1: Check if team already exists
-	equalsFilter := components.CreateStringFieldEqualsFilterStr(teamConfig.Name)
 
-	listTeamsResponse, err := teamSvc.ListTeams(ctx,
-		operations.ListTeamsRequest{
-			Filter: &operations.ListTeamsQueryParamFilter{
-				Name: &components.StringFieldFilter{
-					StringFieldEqualsFilter: &equalsFilter,
-					Type:                    components.StringFieldFilterTypeStringFieldEqualsFilter,
-				},
-			},
-		})
+	// Step 1: Check if team exists
+	teamID, err := findTeamByName(ctx, teamSvc, teamConfig.Name)
 	if err != nil {
-		return fmt.Errorf("failed to list teams: %w", err)
-	}
-
-	var teamID string
-	// TODO: This ignores pagination
-	for _, team := range listTeamsResponse.TeamCollection.Data {
-		if *team.Name == teamConfig.Name {
-			teamID = *team.ID
-			break
-		}
+		return fmt.Errorf("failed to find team: %w", err)
 	}
 
 	// Step 2: Create or Update based on existence
 	if teamID == "" {
-		// Team does not exist, create it
-		createTeamResponse, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
+		// Create new team
+		createResp, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
 			Name:        teamConfig.Name,
 			Description: kk.String(teamConfig.Description),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create team: %w", err)
 		}
-		// update the existingTeamID
-		teamID = *createTeamResponse.Team.ID
+		teamID = *createResp.Team.ID
 	} else {
-		// Team exists, update it
+		// Update existing team
 		_, err = teamSvc.UpdateTeam(ctx, teamID, &components.UpdateTeam{
 			Name:        kk.String(teamConfig.Name),
 			Description: kk.String(teamConfig.Description),
@@ -84,66 +75,31 @@ func ApplyTeam(ctx context.Context,
 		}
 	}
 
-	// Step 3: Apply users if any are specified
+	// Step 3: Apply users
 	if len(teamConfig.Users) > 0 {
 		if err := user.ApplyUsers(ctx, userSvc, inviteSvc, teamConfig.Users); err != nil {
 			return fmt.Errorf("failed to apply users: %w", err)
 		}
-
-		// list the current team users
-		// TODO: This ignores pagination
-		listTeamUsersResponse, err := teamMembershipSvc.ListTeamUsers(ctx, operations.ListTeamUsersRequest{
-			TeamID: teamID,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to list team users: %w", err)
-		}
-
-		// Get all users from user service to map emails to user IDs
-		for _, userEmail := range teamConfig.Users {
-			// Look up user ID
-			equalsFilter := components.CreateStringFieldEqualsFilterStr(userEmail)
-			listUsersResponse, err := userSvc.ListUsers(ctx, operations.ListUsersRequest{
-				Filter: &operations.ListUsersQueryParamFilter{
-					Email: &components.StringFieldFilter{
-						StringFieldEqualsFilter: &equalsFilter,
-						Type:                    components.StringFieldFilterTypeStringFieldEqualsFilter,
-					},
-				},
-			})
-			if err != nil {
-				return fmt.Errorf("failed to list users: %w", err)
-			}
-
-			// Get the user ID
-			var userID string
-			for _, user := range listUsersResponse.UserCollection.Data {
-				if *user.Email == userEmail {
-					userID = *user.ID
-					break
-				}
-			}
-
-			// Check if user is already in team
-			var userInTeam bool
-			for _, existingUser := range listTeamUsersResponse.UserCollection.Data {
-				if *existingUser.Email == userEmail {
-					userInTeam = true
-					break
-				}
-			}
-
-			// Add user to team if not already present
-			if !userInTeam {
-				_, err = teamMembershipSvc.AddUserToTeam(ctx, teamID, &components.AddUserToTeam{
-					UserID: userID,
-				})
-				if err != nil {
-					return fmt.Errorf("failed to add user %s to team: %w", userEmail, err)
-				}
-			}
-		}
 	}
 
 	return nil
+}
+
+// findTeamByName searches for a team by name and returns its ID if found, empty string if not found
+func findTeamByName(ctx context.Context, teamSvc TeamService, teamName string) (string, error) {
+	// List all teams
+	resp, err := teamSvc.ListTeams(ctx, operations.ListTeamsRequest{})
+	if err != nil {
+		return "", fmt.Errorf("failed to list teams: %w", err)
+	}
+
+	// Search for team with matching name
+	for _, team := range resp.TeamCollection.Data {
+		if team.Name != nil && *team.Name == teamName {
+			return *team.ID, nil
+		}
+	}
+
+	// Team not found
+	return "", nil
 }

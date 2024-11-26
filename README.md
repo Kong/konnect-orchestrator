@@ -3,10 +3,10 @@
 > :warning: **WARNING: This is a work in progress tool. Do not use in production. The tool is under
 heavy development and the API and behavior are subject to change.**
 
-
-# Setup
+## Setup
 
 * Create or login to a Konnect Organization
 * Add a System Account named `konnect-orchestrator`
 * Assign the `konnect-orchestrator` account the `Organization Admin` role
 * Create a new token for the `konnect-orchestrator` account and store locally
+* Follow the example in [docs/examples/full.yaml](docs/examples/full.yaml) to setup your configuration
