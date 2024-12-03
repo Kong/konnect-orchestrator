@@ -13,94 +13,74 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-type MockControlPlaneService struct {
-	mock.Mock
-}
-
-func (m *MockControlPlaneService) ListControlPlanes(ctx context.Context, request operations.ListControlPlanesRequest, opts ...operations.Option) (*operations.ListControlPlanesResponse, error) {
-	args := m.Called(ctx, request)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*operations.ListControlPlanesResponse), args.Error(1)
-}
-
-func (m *MockControlPlaneService) CreateControlPlane(ctx context.Context, request components.CreateControlPlaneRequest, opts ...operations.Option) (*operations.CreateControlPlaneResponse, error) {
-	args := m.Called(ctx, request)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*operations.CreateControlPlaneResponse), args.Error(1)
-}
-
-func (m *MockControlPlaneService) UpdateControlPlane(ctx context.Context, id string, request components.UpdateControlPlaneRequest, opts ...operations.Option) (*operations.UpdateControlPlaneResponse, error) {
-	args := m.Called(ctx, id, request)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*operations.UpdateControlPlaneResponse), args.Error(1)
-}
-
-func TestApplyControlPlanes(t *testing.T) {
+func TestApplyControlPlane(t *testing.T) {
 	tests := []struct {
-		name string
-		orgs map[string]internal.OrganizationManifest
-
-		setup   func(*MockControlPlaneService)
-		wantErr bool
+		name       string
+		envName    string
+		env        internal.EnvironmentManifest
+		teamName   string
+		setup      func(*MockControlPlaneService)
+		wantErr    bool
+		expectedID string
 	}{
 		{
-			name: "creates new control plane with labels",
-			orgs: map[string]internal.OrganizationManifest{
-				"test-org": {
-					Environments: map[string]internal.EnvironmentManifest{
-						"dev": {
-							Type: "DEV",
-							Teams: map[string]internal.EnvironmentTeamManifest{
-								"team1": {},
-							},
-						},
-					},
-				},
+			name:    "creates new control plane with labels",
+			envName: "DEV",
+			env: internal.EnvironmentManifest{
+				Type:   "DEV",
+				Region: "us",
 			},
+			teamName: "team1",
 			setup: func(m *MockControlPlaneService) {
-				m.On("ListControlPlanes", mock.Anything, mock.Anything).Return(&operations.ListControlPlanesResponse{
+				m.On("ListControlPlanes",
+					mock.Anything,
+					mock.Anything,
+					mock.Anything,
+				).Return(&operations.ListControlPlanesResponse{
 					ListControlPlanesResponse: &components.ListControlPlanesResponse{
 						Data: []components.ControlPlane{},
 					},
 				}, nil)
 
-				m.On("CreateControlPlane", mock.Anything, mock.MatchedBy(func(req components.CreateControlPlaneRequest) bool {
-					return req.Name == "team1-dev" &&
-						*req.Description == "Control plane for team team1 in environment dev" &&
-						*req.ClusterType == components.CreateControlPlaneRequestClusterType("CLUSTER_TYPE_CONTROL_PLANE") &&
-						req.Labels["env"] == "DEV" &&
-						req.Labels["team"] == "team1"
-				})).Return(&operations.CreateControlPlaneResponse{}, nil)
+				m.On("CreateControlPlane",
+					mock.Anything,
+					mock.MatchedBy(func(req components.CreateControlPlaneRequest) bool {
+						return req.Name == "team1-DEV" &&
+							*req.Description == "Control plane for team team1 in environment DEV" &&
+							*req.ClusterType == components.CreateControlPlaneRequestClusterType("CLUSTER_TYPE_CONTROL_PLANE") &&
+							req.Labels["env"] == "DEV" &&
+							req.Labels["team"] == "team1"
+					}),
+					mock.Anything,
+				).Return(
+					&operations.CreateControlPlaneResponse{
+						ControlPlane: &components.ControlPlane{
+							ID: "new-cp-123",
+						},
+					}, nil)
 			},
-			wantErr: false,
+			wantErr:    false,
+			expectedID: "new-cp-123",
 		},
 		{
-			name: "updates existing control plane with new labels",
-			orgs: map[string]internal.OrganizationManifest{
-				"test-org": {
-					Environments: map[string]internal.EnvironmentManifest{
-						"prod": {
-							Type: "PROD",
-							Teams: map[string]internal.EnvironmentTeamManifest{
-								"team1": {},
-							},
-						},
-					},
-				},
+			name:    "updates existing control plane with new labels",
+			envName: "PROD",
+			env: internal.EnvironmentManifest{
+				Type:   "PROD",
+				Region: "us",
 			},
+			teamName: "team1",
 			setup: func(m *MockControlPlaneService) {
-				m.On("ListControlPlanes", mock.Anything, mock.Anything).Return(&operations.ListControlPlanesResponse{
+				m.On("ListControlPlanes",
+					mock.Anything,
+					mock.Anything,
+					mock.Anything,
+				).Return(&operations.ListControlPlanesResponse{
 					ListControlPlanesResponse: &components.ListControlPlanesResponse{
 						Data: []components.ControlPlane{
 							{
-								ID:          "cp-123",
-								Name:        "team1-prod",
+								ID:          "existing-cp-123",
+								Name:        "team1-PROD",
 								Labels:      map[string]string{},
 								Description: kk.String("Old description"),
 							},
@@ -108,31 +88,33 @@ func TestApplyControlPlanes(t *testing.T) {
 					},
 				}, nil)
 
-				m.On("UpdateControlPlane", mock.Anything, "cp-123", mock.MatchedBy(func(req components.UpdateControlPlaneRequest) bool {
-					return *req.Description == "Control plane for team team1 in environment prod" &&
-						req.Labels["env"] == "PROD" &&
-						req.Labels["team"] == "team1"
-				})).Return(&operations.UpdateControlPlaneResponse{}, nil)
+				m.On("UpdateControlPlane",
+					mock.Anything,
+					"existing-cp-123",
+					mock.MatchedBy(func(req components.UpdateControlPlaneRequest) bool {
+						return *req.Description == "Control plane for team team1 in environment PROD" &&
+							req.Labels["env"] == "PROD" &&
+							req.Labels["team"] == "team1"
+					}),
+					mock.Anything,
+				).Return(&operations.UpdateControlPlaneResponse{}, nil)
 			},
-			wantErr: false,
+			wantErr:    false,
+			expectedID: "existing-cp-123",
 		},
 		{
-			name: "handles list error",
-			orgs: map[string]internal.OrganizationManifest{
-				"test-org": {
-					Environments: map[string]internal.EnvironmentManifest{
-						"dev": {
-							Teams: map[string]internal.EnvironmentTeamManifest{
-								"team1": {},
-							},
-						},
-					},
-				},
+			name:    "handles list error",
+			envName: "DEV",
+			env: internal.EnvironmentManifest{
+				Type:   "DEV",
+				Region: "us",
 			},
+			teamName: "team1",
 			setup: func(m *MockControlPlaneService) {
-				m.On("ListControlPlanes", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("list error"))
+				m.On("ListControlPlanes", mock.Anything, mock.Anything, mock.Anything).Return(nil, fmt.Errorf("list error"))
 			},
-			wantErr: true,
+			wantErr:    true,
+			expectedID: "",
 		},
 	}
 
@@ -141,12 +123,13 @@ func TestApplyControlPlanes(t *testing.T) {
 			mockCPSvc := &MockControlPlaneService{}
 			tt.setup(mockCPSvc)
 
-			err := ApplyControlPlanes(context.Background(), mockCPSvc, tt.orgs)
+			id, err := ApplyControlPlane(context.Background(), mockCPSvc, tt.envName, tt.env, tt.teamName)
 
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedID, id)
 			}
 			mock.AssertExpectationsForObjects(t, mockCPSvc)
 		})

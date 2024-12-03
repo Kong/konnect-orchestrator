@@ -32,8 +32,9 @@ type OrganizationManifest struct {
 
 // EnvironmentManifest represents an environment's configuration
 type EnvironmentManifest struct {
-	Type  string                             `json:"type" yaml:"type"`
-	Teams map[string]EnvironmentTeamManifest `json:"teams,omitempty" yaml:"teams,omitempty"`
+	Type   string                             `json:"type" yaml:"type"`
+	Region string                             `json:"region" yaml:"region"`
+	Teams  map[string]EnvironmentTeamManifest `json:"teams,omitempty" yaml:"teams,omitempty"`
 }
 
 // EnvironmentTeamManifest represents a team's configuration within an environment

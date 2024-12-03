@@ -59,8 +59,7 @@ organizations:
   kong-financial:
     # API calls are scoped to organizations via the access-token used,
     # thus, we don't need to track the org ID here.
-    # The access-token supports a file path, using the `@/file/path` syntax,
-    # an environment variable, or a literal string (not recommended).
+    # The access-token field supports a file, environment variable, or literal string type.
     access-token:
       type: file
       value: $HOME/.konnect/20241120-kf-ko.spat
@@ -76,6 +75,8 @@ organizations:
       #   policies applied to resources
       dev:
         type: DEV
+        # `region` is required and must equal one of the Konnect supported region strings
+        region: us
         teams:
           core:
             services:
@@ -86,6 +87,7 @@ organizations:
               - KongFinancial/retail-cards
       prd:
         type: PROD
+        region: us
         teams:
           core:
             services:
@@ -104,6 +106,7 @@ organizations:
     environments:
       dev:
         type: DEV
+        region: us
         teams:
           core:
             services:
@@ -114,6 +117,7 @@ organizations:
               - BonobosBank/fixed-income
       prd:
         type: PROD
+        region: us
         teams:
           core:
             services:

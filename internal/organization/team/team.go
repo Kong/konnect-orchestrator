@@ -45,25 +45,24 @@ func ApplyTeam(ctx context.Context,
 	teamMembershipSvc TeamMembershipService,
 	userSvc user.UserService,
 	inviteSvc user.InviteService,
-	teamConfig Team) error {
+	teamConfig Team) (string, error) {
 
 	// Step 1: Check if team exists
 	teamID, err := findTeamByName(ctx, teamSvc, teamConfig.Name)
 	if err != nil {
-		return fmt.Errorf("failed to find team: %w", err)
+		return "", fmt.Errorf("failed to find team: %w", err)
 	}
 
 	// Step 2: Create or Update based on existence
 	if teamID == "" {
 		// Create new team
-		createResp, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
+		_, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
 			Name:        teamConfig.Name,
 			Description: kk.String(teamConfig.Description),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to create team: %w", err)
+			return "", fmt.Errorf("failed to create team: %w", err)
 		}
-		teamID = *createResp.Team.ID
 	} else {
 		// Update existing team
 		_, err = teamSvc.UpdateTeam(ctx, teamID, &components.UpdateTeam{
@@ -71,18 +70,18 @@ func ApplyTeam(ctx context.Context,
 			Description: kk.String(teamConfig.Description),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to update team: %w", err)
+			return "", fmt.Errorf("failed to update team: %w", err)
 		}
 	}
 
 	// Step 3: Apply users
 	if len(teamConfig.Users) > 0 {
 		if err := user.ApplyUsers(ctx, userSvc, inviteSvc, teamConfig.Users); err != nil {
-			return fmt.Errorf("failed to apply users: %w", err)
+			return "", fmt.Errorf("failed to apply users: %w", err)
 		}
 	}
 
-	return nil
+	return teamID, nil
 }
 
 // findTeamByName searches for a team by name and returns its ID if found, empty string if not found

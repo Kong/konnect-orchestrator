@@ -8,6 +8,8 @@ dir: "{{.InterfaceDir}}"
 mockname: "Mock{{.InterfaceName}}"
 outpkg: "{{.PackageName}}"
 
+issue-845-fix: True
+
 packages:
   github.com/Kong/konnect-orchestrator/internal/organization/team:
     interfaces:
@@ -17,3 +19,9 @@ packages:
     interfaces:
       UserService:
       InviteService:
+  github.com/Kong/konnect-orchestrator/internal/organization/role:
+    interfaces:
+      RoleService:
+  github.com/Kong/konnect-orchestrator/internal/gateway:
+    interfaces:
+      ControlPlaneService:
