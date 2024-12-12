@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/organization/user"
 	kk "github.com/Kong/sdk-konnect-go"
 	"github.com/Kong/sdk-konnect-go/models/components"
@@ -23,32 +24,16 @@ type TeamMembershipService interface {
 	AddUserToTeam(ctx context.Context, teamID string, addUserToTeam *components.AddUserToTeam, opts ...operations.Option) (*operations.AddUserToTeamResponse, error)
 }
 
-// Team represents a team in the organization
-type Team struct {
-	Name        string                   `json:"name" yaml:"name"`
-	Description string                   `json:"description" yaml:"description"`
-	Users       []string                 `json:"users" yaml:"users"`
-	Services    map[string]ServiceConfig `json:"services" yaml:"services"`
-}
-
-// ServiceConfig represents a service configuration
-type ServiceConfig struct {
-	Name        string `json:"name" yaml:"name"`
-	VCS         string `json:"vcs" yaml:"vcs"`
-	Description string `json:"description" yaml:"description"`
-	SpecPath    string `json:"spec-path" yaml:"spec-path"`
-	KongPath    string `json:"kong-path" yaml:"kong-path"`
-}
-
 func ApplyTeam(ctx context.Context,
 	teamSvc TeamService,
 	teamMembershipSvc TeamMembershipService,
 	userSvc user.UserService,
 	inviteSvc user.InviteService,
-	teamConfig Team) (string, error) {
+	teamName string,
+	teamConfig manifest.Team) (string, error) {
 
 	// Step 1: Check if team exists
-	teamID, err := findTeamByName(ctx, teamSvc, teamConfig.Name)
+	teamID, err := findTeamByName(ctx, teamSvc, teamName)
 	if err != nil {
 		return "", fmt.Errorf("failed to find team: %w", err)
 	}
@@ -56,17 +41,18 @@ func ApplyTeam(ctx context.Context,
 	// Step 2: Create or Update based on existence
 	if teamID == "" {
 		// Create new team
-		_, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
-			Name:        teamConfig.Name,
+		resp, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
+			Name:        teamName,
 			Description: kk.String(teamConfig.Description),
 		})
 		if err != nil {
 			return "", fmt.Errorf("failed to create team: %w", err)
 		}
+		teamID = *resp.Team.ID
 	} else {
 		// Update existing team
 		_, err = teamSvc.UpdateTeam(ctx, teamID, &components.UpdateTeam{
-			Name:        kk.String(teamConfig.Name),
+			Name:        kk.String(teamName),
 			Description: kk.String(teamConfig.Description),
 		})
 		if err != nil {

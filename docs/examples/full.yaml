@@ -1,53 +1,65 @@
 ---  
+# The platform key defines the platform team configuration
+platform:
+  # this is the repo where platform team automations, configuration, and other 
+  # code is stored.
+  git:
+    remote: git@github.com:KongAirlines/platform.git 
+    auth:
+      type: ssh
+      ssh:
+        key:
+          type: file
+          value: $HOME/.ssh/id_ed25519
+          # ---
+          # type: env # NOT YET SUPPORTED
+          # value: PLATFORM_GIT_REPO_KEY
+          # ---
+          # type: literal # NOT YET SUPPORTED and not recommended to prevent accidental exposure
+          # value: ajbjdkfjhfhijajaj
+
 # teams define the names, description, and members of engineering groups.
 #   teams are associated with services. These are the applications they build
 #   and maintain. 
 teams:
-  core:
-    description: Kong Financial Core team
+  flight-data:
+    description: Kong Air Flight Data team
     users:
-      - "rick.spurgeon+kongfinancial1@konghq.com"
+      - "rick.spurgeon+KAFD1@konghq.com"
+      - "rick.spurgeon+KAFD2@konghq.com"
     # services are the applications this team builds and maintains.
     #   Each service provides sufficient metadata to allow the orchestrator
     #   to apply service specific configurations and policies.
     services:
-      KongFinancial/user:
+      KongAirlines/routes:
         # The service key supports a heirarchical name.
         # This can support service specific patches by allowing patches to be 
         # specified in a matching folder structure.
-        name: user
-        vcs: "https://github.com/KongFinancial/user"
-        description: Kong Financial User management service
+        name: routes
+        description: Provides the KongAir routing information including flight origin and destination codes. The API also provdes average duration of flight time for each route. 
+        git:
+          remote: git@github.com:KongAirlines/routes.git 
+          auth:
+            type: ssh
+            ssh:
+              key:
+                type: file
+                value: $HOME/.ssh/id_ed25519
         # The idea with spec-path is a pointer to an OAS3 spec file, which is used
-        # as a basis for GS configuration generation by the central automation
+        # as a basis for Kong Gateway configuration generation by the central automation
         spec-path: openapi.yaml # relative to the vcs root 
-        # The idea with kong-path is a pointer to a folder that contains 
-        # service specific Kong configuration patches, applied by the central team's
-        kong-path: kong         # relative to the vcs root
-      KongFinancial/account:
-        name: account
-        vcs: "https://github.com/KongFinancial/account"
-        description: Kong Financial Account management service
-        # What happens if there is no spec-path?
-        # spec-path: openapi.yaml
-  credit:
-    description: Kong Financial Credit team
-    users:
-      - "rick.spurgeon+kongfinancial1@konghq.com"
-      - "rick.spurgeon+kongfinancial2@konghq.com"
-    services:
-      KongFinancial/retail-cards:
-        name: retail-cards
-        vcs: https://github.com/KongFinancial/retail-cards 
-  bb-fixed-income:
-    description: Bonobos Bank Fixed Income team
-    users:
-      - "rick.spurgeon+bb1@konghq.com"
-      - "rick.spurgeon+bb2@konghq.com"
-    services:
-      BonobosBank/fixed-income:
-        name: bb-fi
-        vcs: https://github.com/BonobosBank/fixed-income 
+      KongAirlines/flights:
+        name: flights
+        description: Provides the KongAir flights information including flight number and other details.
+        git:
+          remote: git@github.com:KongAirlines/flights.git
+          auth:
+            type: ssh
+            ssh:
+              key:
+                type: file
+                value: $HOME/.ssh/id_ed25519
+        spec-path: openapi.yaml
 
 # The organizations field defines the topology of the managed teams and services across 
 # one or more Konnect Organizations. This allows the orchestrator to
@@ -56,13 +68,13 @@ organizations:
 
   # This key is arbitrary as it relates to Konnect, but it's recommended to relate to 
   # the organization name 
-  kong-financial:
+  KongAirlines:
     # API calls are scoped to organizations via the access-token used,
     # thus, we don't need to track the org ID here.
     # The access-token field supports a file, environment variable, or literal string type.
     access-token:
       type: file
-      value: $HOME/.konnect/20241120-kf-ko.spat
+      value: $HOME/.konnect/20241211-ka-ko.spat
       # ---
       # type: env
       # value: KONNECT_ACCESS_TOKEN
@@ -78,51 +90,19 @@ organizations:
         # `region` is required and must equal one of the Konnect supported region strings
         region: us
         teams:
-          core:
+          flight-data:
             services:
-              - KongFinancial/user
-              - KongFinancial/account
-          credit:
-            services:
-              - KongFinancial/retail-cards
+              KongAirlines/routes:
+                branch: dev
+              KongAirlines/flights:
+                branch: dev
       prd:
         type: PROD
         region: us
         teams:
-          core:
+          flight-data:
             services:
-              - KongFinancial/user
-              - KongFinancial/account
-          credit:
-            services:
-              - KongFinancial/retail-cards
-
-  # Let's pretend this is an acquired bank that the Kong Financial platform team is integrating
-  bonobos-bank: 
-    access-token:
-      type: file
-      value: $HOME/.konnect/20241120-bb-ko.spat 
-
-    environments:
-      dev:
-        type: DEV
-        region: us
-        teams:
-          core:
-            services:
-              - KongFinancial/user
-              - KongFinancial/account
-          bb-fixed-income:
-            services:
-              - BonobosBank/fixed-income
-      prd:
-        type: PROD
-        region: us
-        teams:
-          core:
-            services:
-              - KongFinancial/user
-              - KongFinancial/account
-          bb-fixed-income:
-            services:
-              - BonobosBank/fixed-income
+              KongAirlines/routes:
+                branch: main
+              KongAirlines/flights:
+                branch: main

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/Kong/sdk-konnect-go/models/operations"
 	"github.com/stretchr/testify/mock"
@@ -37,20 +38,21 @@ func (m *MockInviteService) InviteUser(ctx context.Context, request *components.
 func TestApplyTeam(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  Team
+		config  manifest.Team
 		setup   func(*MockTeamService, *MockTeamMembershipService, *MockUserService, *MockInviteService)
 		wantErr bool
 	}{
 		{
 			name: "creates new team with services",
-			config: Team{
-				Name:        "new-team",
+			config: manifest.Team{
 				Description: "A new team",
-				Services: map[string]ServiceConfig{
+				Services: map[string]manifest.Service{
 					"service1": {
 						Name:        "svc1",
 						Description: "Service 1",
-						VCS:         "https://github.com/org/svc1",
+						Git: manifest.Git{
+							Remote: "https://github.com/org/svc1",
+						},
 					},
 				},
 			},

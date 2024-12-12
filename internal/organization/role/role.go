@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Kong/konnect-orchestrator/internal"
+	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	kk "github.com/Kong/sdk-konnect-go"
 	"github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/Kong/sdk-konnect-go/models/operations"
@@ -25,7 +25,12 @@ const (
 	PROD EnvironmentType = "PROD"
 )
 
-func applyDevRoles(ctx context.Context, rolesSvc RoleService, teamID string, cpID string, envConfig internal.EnvironmentManifest) error {
+func applyDevRoles(
+	ctx context.Context,
+	rolesSvc RoleService,
+	teamID string,
+	cpID string,
+	envConfig manifest.Environment) error {
 	// Check if the role is already assigned
 	listResp, err := rolesSvc.ListTeamRoles(ctx, teamID, &operations.ListTeamRolesQueryParamFilter{
 		RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Viewer")),
@@ -54,7 +59,12 @@ func applyDevRoles(ctx context.Context, rolesSvc RoleService, teamID string, cpI
 	return nil
 }
 
-func applyProdRoles(ctx context.Context, rolesSvc RoleService, teamID string, cpID string, envConfig internal.EnvironmentManifest) error {
+func applyProdRoles(
+	ctx context.Context,
+	rolesSvc RoleService,
+	teamID string,
+	cpID string,
+	envConfig manifest.Environment) error {
 	// Check if the role is already assigned
 	listResp, err := rolesSvc.ListTeamRoles(ctx, teamID, &operations.ListTeamRolesQueryParamFilter{
 		RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Admin")),
@@ -84,7 +94,12 @@ func applyProdRoles(ctx context.Context, rolesSvc RoleService, teamID string, cp
 }
 
 // ApplyRoles assigns the appropriate role to a team based on the environment type
-func ApplyRoles(ctx context.Context, rolesSvc RoleService, teamID string, cpID string, envConfig internal.EnvironmentManifest) error {
+func ApplyRoles(
+	ctx context.Context,
+	rolesSvc RoleService,
+	teamID string,
+	cpID string,
+	envConfig manifest.Environment) error {
 	envType := EnvironmentType(envConfig.Type)
 	if envType == DEV {
 		return applyDevRoles(ctx, rolesSvc, teamID, cpID, envConfig)

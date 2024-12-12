@@ -9,4 +9,26 @@ heavy development and the API and behavior are subject to change.**
 * Add a System Account named `konnect-orchestrator`
 * Assign the `konnect-orchestrator` account the `Organization Admin` role
 * Create a new token for the `konnect-orchestrator` account and store locally
-* Follow the example in [docs/examples/full.yaml](docs/examples/full.yaml) to setup your configuration
+* Follow the example in [docs/examples/full.yaml](docs/examples/full.yaml) to
+  setup your configuration
+
+## API Publication Logic
+
+* The orchestrator will manage a folder structure in the
+  `platform.git` repo. This structure will contain assets
+  obtained from managed services, and potentially other generated assets
+  so that the Konnect / Kong environments can be managed declaratively
+  following a GitOps style process.
+
+```txt
+konnect
+  kong-financial
+    envs
+      dev
+        teams
+          core
+            services
+              KongFinancial
+                user
+                  openapi.yaml
+```
