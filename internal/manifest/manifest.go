@@ -20,7 +20,7 @@ type Service struct {
 }
 
 type Organization struct {
-	AccessToken  AccessToken            `json:"access-token" yaml:"access-token"`
+	AccessToken  Secret                 `json:"access-token" yaml:"access-token"`
 	Environments map[string]Environment `json:"environments,omitempty" yaml:"environments,omitempty"`
 }
 
@@ -38,9 +38,10 @@ type EnvironmentService struct {
 	Branch string `json:"branch,omitempty" yaml:"branch,omitempty"`
 }
 
-// AccessToken represents the configuration for organization access tokens
-type AccessToken struct {
-	Type  string `json:"type" yaml:"type"`
+type Secret struct {
+	// Type is the storage type of secret, e.g. file, env, literal
+	Type string `json:"type" yaml:"type"`
+	// Value is the value of the secret, e.g. the file path, env var name, or literal value
 	Value string `json:"value" yaml:"value"`
 }
 
@@ -51,26 +52,26 @@ type Platform struct {
 
 // GitConfig represents git repository configuration
 type GitConfig struct {
-	Remote string        `json:"remote,omitempty" yaml:"remote,omitempty"`
-	Auth   GitAuthConfig `json:"auth,omitempty" yaml:"auth,omitempty"`
-	Author Author        `json:"author,omitempty" yaml:"author,omitempty"`
+	Remote string       `json:"remote,omitempty" yaml:"remote,omitempty"`
+	Author Author       `json:"author,omitempty" yaml:"author,omitempty"`
+	Auth   AuthConfig   `json:"auth,omitempty" yaml:"auth,omitempty"`
+	GitHub GitHubConfig `json:"github,omitempty" yaml:"github,omitempty"`
 }
 
-// GitAuthConfig represents git authentication configuration
-type GitAuthConfig struct {
-	Type string    `json:"type,omitempty" yaml:"type,omitempty"`
-	SSH  SSHConfig `json:"ssh,omitempty" yaml:"ssh,omitempty"`
+type GitHubConfig struct {
+	Token Secret `json:"token,omitempty" yaml:"token,omitempty"`
+}
+
+// AuthConfig represents git authentication configuration
+type AuthConfig struct {
+	Type  string    `json:"type,omitempty" yaml:"type,omitempty"`
+	SSH   SSHConfig `json:"ssh,omitempty" yaml:"ssh,omitempty"`
+	Token Secret    `json:"token,omitempty" yaml:"token,omitempty"`
 }
 
 // SSHConfig represents SSH key configuration
 type SSHConfig struct {
-	Key KeyConfig `json:"key,omitempty" yaml:"key,omitempty"`
-}
-
-// KeyConfig represents a generic key configuration that can be loaded from different sources
-type KeyConfig struct {
-	Type  string `json:"type,omitempty" yaml:"type,omitempty"`
-	Value string `json:"value,omitempty" yaml:"value,omitempty"`
+	Key Secret `json:"key,omitempty" yaml:"key,omitempty"`
 }
 
 // Author represents git commit author configuration

@@ -4,22 +4,22 @@ platform:
   # this is the repo where platform team automations, configuration, and other 
   # code is stored.
   git:
-    remote: git@github.com:KongAirlines/platform.git 
+    remote: https://github.com/KongAirlines/platform.git 
     author:
       name: "Konnect Orchestrator"
       email: "ko@konghq.com"
-    auth:
-      type: ssh
-      ssh:
-        key:
-          type: file
-          value: $HOME/.ssh/id_ed25519
-          # ---
-          # type: env # NOT YET SUPPORTED
-          # value: PLATFORM_GIT_REPO_KEY
-          # ---
-          # type: literal # NOT YET SUPPORTED and not recommended to prevent accidental exposure
-          # value: ajbjdkfjhfhijajaj
+    github:
+      token: &platform_github_token
+        type: file
+        value: $HOME/.github/20241213-KongAirlines-platform.pat
+    auth: # Used for git authorization
+      # type is required and can be either: `ssh` or `token`
+      type: token
+      token: *platform_github_token
+      #ssh:
+      #  key:
+      #    type: file
+      #    value: $HOME/.ssh/id_ed25519
 
 # teams define the names, description, and members of engineering groups.
 #   teams are associated with services. These are the applications they build

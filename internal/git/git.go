@@ -8,42 +8,45 @@ import (
 	"time"
 
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
+	"github.com/Kong/konnect-orchestrator/internal/util"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
 // getAuthMethod returns an ssh.AuthMethod based on the git config, or nil if no auth is specified
-func getAuthMethod(gitConfig manifest.GitConfig) (ssh.AuthMethod, error) {
+func getAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 	// Return nil if no auth configured
 	if gitConfig.Auth.Type == "" {
 		return nil, nil
 	}
 
 	// Only support SSH auth for now
-	if gitConfig.Auth.Type != "ssh" {
-		return nil, errors.New("not supported")
-	}
-
-	// Get the SSH key content based on the key type
-	switch gitConfig.Auth.SSH.Key.Type {
-	case "file":
-		expandedPath := os.ExpandEnv(gitConfig.Auth.SSH.Key.Value)
-		// Create SSH key authentication
-		publicKeys, err := ssh.NewPublicKeysFromFile("git", expandedPath, "" /*pwd*/)
+	if gitConfig.Auth.Type == "ssh" {
+		key, err := util.ResolveSecretValue(gitConfig.Auth.SSH.Key)
+		if err != nil {
+			return nil, err
+		}
+		publicKeys, err := ssh.NewPublicKeys("git", []byte(key), "")
 		if err != nil {
 			return nil, err
 		}
 		return publicKeys, nil
-	case "env":
-		//keyContent = os.Getenv(platform.Git.Auth.SSH.Key.Value)
-		return nil, errors.New("not supported")
-	case "literal":
-		//keyContent = platform.Git.Auth.SSH.Key.Value
-		return nil, errors.New("not supported")
-	default:
-		return nil, errors.New("not supported")
+	} else if gitConfig.Auth.Type == "token" {
+		key, err := util.ResolveSecretValue(gitConfig.Auth.Token)
+		if err != nil {
+			return nil, err
+		}
+		bashAuth := &http.BasicAuth{
+			Username: "x-access-token",
+			Password: key,
+		}
+		return bashAuth, nil
+	} else {
+		return nil, errors.New("unsupported auth type: " + gitConfig.Auth.Type)
 	}
 }
 
