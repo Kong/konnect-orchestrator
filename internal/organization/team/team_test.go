@@ -50,7 +50,7 @@ func TestApplyTeam(t *testing.T) {
 					"service1": {
 						Name:        "svc1",
 						Description: "Service 1",
-						Git: manifest.Git{
+						Git: manifest.GitConfig{
 							Remote: "https://github.com/org/svc1",
 						},
 					},

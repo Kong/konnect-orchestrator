@@ -33,13 +33,14 @@ func ApplyTeam(ctx context.Context,
 	teamConfig manifest.Team) (string, error) {
 
 	// Step 1: Check if team exists
-	teamID, err := findTeamByName(ctx, teamSvc, teamName)
+	var teamID string
+	team, err := findTeamByName(ctx, teamSvc, teamName)
 	if err != nil {
 		return "", fmt.Errorf("failed to find team: %w", err)
 	}
 
 	// Step 2: Create or Update based on existence
-	if teamID == "" {
+	if team == nil {
 		// Create new team
 		resp, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
 			Name:        teamName,
@@ -51,12 +52,24 @@ func ApplyTeam(ctx context.Context,
 		teamID = *resp.Team.ID
 	} else {
 		// Update existing team
-		_, err = teamSvc.UpdateTeam(ctx, teamID, &components.UpdateTeam{
-			Name:        kk.String(teamName),
-			Description: kk.String(teamConfig.Description),
-		})
-		if err != nil {
-			return "", fmt.Errorf("failed to update team: %w", err)
+		teamID = *team.ID
+		// Only update if there are differences
+		needsUpdate := false
+		if *team.Name != teamName {
+			needsUpdate = true
+		}
+		if (team.Description == nil && teamConfig.Description != "") ||
+			(team.Description != nil && *team.Description != teamConfig.Description) {
+			needsUpdate = true
+		}
+		if needsUpdate {
+			_, err = teamSvc.UpdateTeam(ctx, teamID, &components.UpdateTeam{
+				Name:        kk.String(teamName),
+				Description: kk.String(teamConfig.Description),
+			})
+			if err != nil {
+				return "", fmt.Errorf("failed to update team: %w", err)
+			}
 		}
 	}
 
@@ -71,20 +84,20 @@ func ApplyTeam(ctx context.Context,
 }
 
 // findTeamByName searches for a team by name and returns its ID if found, empty string if not found
-func findTeamByName(ctx context.Context, teamSvc TeamService, teamName string) (string, error) {
+func findTeamByName(ctx context.Context, teamSvc TeamService, teamName string) (*components.Team, error) {
 	// List all teams
 	resp, err := teamSvc.ListTeams(ctx, operations.ListTeamsRequest{})
 	if err != nil {
-		return "", fmt.Errorf("failed to list teams: %w", err)
+		return nil, fmt.Errorf("failed to list teams: %w", err)
 	}
 
 	// Search for team with matching name
 	for _, team := range resp.TeamCollection.Data {
 		if team.Name != nil && *team.Name == teamName {
-			return *team.ID, nil
+			return &team, nil
 		}
 	}
 
 	// Team not found
-	return "", nil
+	return nil, nil
 }

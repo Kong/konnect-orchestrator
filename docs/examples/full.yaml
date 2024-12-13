@@ -5,6 +5,9 @@ platform:
   # code is stored.
   git:
     remote: git@github.com:KongAirlines/platform.git 
+    author:
+      name: "Konnect Orchestrator"
+      email: "ko@konghq.com"
     auth:
       type: ssh
       ssh:
@@ -24,6 +27,7 @@ platform:
 teams:
   flight-data:
     description: Kong Air Flight Data team
+    # Users are invited to Konnect if they aren't already registered
     users:
       - "rick.spurgeon+KAFD1@konghq.com"
       - "rick.spurgeon+KAFD2@konghq.com"
@@ -82,17 +86,19 @@ organizations:
       # type: literal # not recommended to prevent accidental exposure
       # value: pat_ajbjdkfjhfhijajaj
     environments:
-      # `type` is required and can be either: `DEV` or `PROD`
-      #   These values are well known to the orchestrator and are used to determine the 
-      #   policies applied to resources
       dev:
+        # `type` is required and can be either: `DEV` or `PROD`
+        #   These values are well known to the orchestrator and are used to determine the 
+        #   policies applied to resources
         type: DEV
         # `region` is required and must equal one of the Konnect supported region strings
         region: us
+        # Here we are defining which team's services are deployed to this environment
         teams:
           flight-data:
             services:
               KongAirlines/routes:
+                # The branch tells the orchestrator where to find environment specific resources
                 branch: dev
               KongAirlines/flights:
                 branch: dev
