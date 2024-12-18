@@ -32,3 +32,8 @@ konnect
                 user
                   openapi.yaml
 ```
+
+## Platform repo setup
+
+* GH Actions need PR creation privileges
+* The PR workflows are currently manually created in the repo, eventually by the orchestrator

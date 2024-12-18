@@ -10,6 +10,7 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/util"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -209,6 +210,80 @@ func Push(dir string, gitConfig manifest.GitConfig) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func CheckoutBranch(dir string, branch string) error {
+	r, err := git.PlainOpen(dir)
+	if err != nil {
+		return err
+	}
+
+	w, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+
+	// Try to fetch the remote branch first
+	err = r.Fetch(&git.FetchOptions{
+		RefSpecs: []config.RefSpec{
+			config.RefSpec(fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch)),
+		},
+		Force: true,
+	})
+	// Only return error if it's not "already up to date" or "no matching ref spec"
+	if err != nil && err != git.NoErrAlreadyUpToDate && !errors.Is(err, git.NoMatchingRefSpecError{}) {
+		return fmt.Errorf("failed to fetch remote branch: %w", err)
+	}
+
+	// Check if remote branch exists
+	remoteBranch := plumbing.NewRemoteReferenceName("origin", branch)
+	remoteRef, err := r.Reference(remoteBranch, true)
+
+	branchRef := plumbing.NewBranchReferenceName(branch)
+	if err == nil {
+		// Remote branch exists, create local branch from remote
+		_, err = r.Reference(branchRef, true)
+		if err == plumbing.ErrReferenceNotFound {
+			// Create new local branch tracking remote branch
+			headRef := plumbing.NewHashReference(branchRef, remoteRef.Hash())
+			err = r.Storer.SetReference(headRef)
+			if err != nil {
+				return fmt.Errorf("failed to create local branch: %w", err)
+			}
+		}
+
+		// Checkout the branch
+		err = w.Checkout(&git.CheckoutOptions{
+			Branch: branchRef,
+			Force:  true,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to checkout branch: %w", err)
+		}
+	} else {
+		// Checkout the branch (will create if doesn't exist)
+		err = w.Checkout(&git.CheckoutOptions{
+			Branch: branchRef,
+			Force:  true,
+			Create: true,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to checkout branch: %w", err)
+		}
+
+		// If remote branch exists, reset to its state
+		if remoteRef != nil {
+			err = w.Reset(&git.ResetOptions{
+				Commit: remoteRef.Hash(),
+				Mode:   git.HardReset,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to reset to remote branch: %w", err)
+			}
+		}
 	}
 
 	return nil
