@@ -151,7 +151,7 @@ jobs:
         uses: peter-evans/create-pull-request@v5
         with:
           title: "[Konnect] [${{ steps.extract-context.outputs.env }}] - Spec to decK"
-          branch: "${{ steps.extract-context.outputs.DIR }}"
+          branch: "spec-to-deck/${{ steps.extract-context.outputs.DIR }}"
           labels: "${{ steps.extract-context.outputs.team }},${{ steps.extract-context.outputs.env }},kong,konnect"
           commit-message: "Converted OAS to decK for ${{ steps.extract-context.outputs.file}}" 
           body: |
