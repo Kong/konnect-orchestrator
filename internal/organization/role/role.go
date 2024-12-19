@@ -25,7 +25,7 @@ const (
 	PROD EnvironmentType = "PROD"
 )
 
-func applyDevRoles(
+func applyProdRoles(
 	ctx context.Context,
 	rolesSvc RoleService,
 	teamID string,
@@ -59,7 +59,7 @@ func applyDevRoles(
 	return nil
 }
 
-func applyProdRoles(
+func applyDevRoles(
 	ctx context.Context,
 	rolesSvc RoleService,
 	teamID string,

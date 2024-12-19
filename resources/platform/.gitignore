@@ -1,2 +1,2 @@
+# This ignores the installation of deck CLI in CICD pipelines
 deck-*/
-

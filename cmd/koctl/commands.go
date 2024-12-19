@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Kong/konnect-orchestrator/internal/gateway"
@@ -323,6 +324,7 @@ func copyDir(src, dst string) error {
 		return fmt.Errorf("failed to read directory %s: %w", src, err)
 	}
 
+	// Create directory if it doesn't exist (preserve if it does)
 	if err := os.MkdirAll(dst, 0755); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dst, err)
 	}
@@ -350,45 +352,102 @@ func copyDir(src, dst string) error {
 	return nil
 }
 
+func mergeGitignore(srcPath, dstPath string) error {
+	// Read source .gitignore content
+	srcContent, err := os.ReadFile(srcPath)
+	if err != nil {
+		return fmt.Errorf("failed to read source .gitignore: %w", err)
+	}
+
+	srcLines := make(map[string]bool)
+	for _, line := range strings.Split(strings.TrimSpace(string(srcContent)), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			srcLines[line] = true
+		}
+	}
+
+	var dstLines []string
+	// Read destination .gitignore if it exists
+	if _, err := os.Stat(dstPath); err == nil {
+		dstContent, err := os.ReadFile(dstPath)
+		if err != nil {
+			return fmt.Errorf("failed to read destination .gitignore: %w", err)
+		}
+		dstLines = strings.Split(strings.TrimSpace(string(dstContent)), "\n")
+
+		// Remove empty lines and check which source lines already exist
+		for _, line := range dstLines {
+			if line = strings.TrimSpace(line); line != "" {
+				srcLines[line] = false // Mark as already existing
+			}
+		}
+	}
+
+	// Append only new lines from source
+	f, err := os.OpenFile(dstPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open destination .gitignore: %w", err)
+	}
+	defer f.Close()
+
+	// If the file is not empty and doesn't end with a newline, add one
+	if len(dstLines) > 0 {
+		if _, err := f.WriteString("\n"); err != nil {
+			return fmt.Errorf("failed to write newline to .gitignore: %w", err)
+		}
+	}
+
+	// Write new lines
+	for line, shouldAdd := range srcLines {
+		if shouldAdd {
+			if _, err := f.WriteString(line + "\n"); err != nil {
+				return fmt.Errorf("failed to write to .gitignore: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
 func runInit(cmd *cobra.Command, args []string) error {
 	targetDir := args[0]
 
-	// Create the base konnect directory
-	konnectDir := filepath.Join(targetDir, "konnect")
-	if err := os.MkdirAll(konnectDir, 0755); err != nil {
-		return fmt.Errorf("failed to create konnect directory: %w", err)
+	// Copy the entire konnect directory structure
+	srcKonnectDir := filepath.Join("resources", "platform", "konnect")
+	dstKonnectDir := filepath.Join(targetDir, "konnect")
+	if err := copyDir(srcKonnectDir, dstKonnectDir); err != nil {
+		return fmt.Errorf("failed to copy konnect directory: %w", err)
 	}
 
-	// Copy template files from resources/platform
-	templateFiles := []string{
-		"konnect.yaml",
-		"oas-file-rules.yaml",
-		"deck-file-rules.yaml",
-		".gitignore",
+	// Handle .gitignore specially - merge with existing if present
+	srcGitignore := filepath.Join("resources", "platform", ".gitignore")
+	dstGitignore := filepath.Join(targetDir, ".gitignore")
+	if err := mergeGitignore(srcGitignore, dstGitignore); err != nil {
+		return fmt.Errorf("failed to handle .gitignore: %w", err)
 	}
 
-	for _, file := range templateFiles {
-		srcPath := filepath.Join("resources", "platform", file)
-		dstPath := filepath.Join(konnectDir, file)
-
-		content, err := os.ReadFile(srcPath)
-		if err != nil {
-			return fmt.Errorf("failed to read template file %s: %w", file, err)
-		}
-
-		if err := os.WriteFile(dstPath, content, 0644); err != nil {
-			return fmt.Errorf("failed to write file %s: %w", file, err)
-		}
-	}
-
-	// Recursively copy .github directory and its contents
+	// Copy .github directory to the base target directory
 	srcGithubDir := filepath.Join("resources", "platform", ".github")
-	dstGithubDir := filepath.Join(konnectDir, ".github")
+	dstGithubDir := filepath.Join(targetDir, ".github")
 	if err := copyDir(srcGithubDir, dstGithubDir); err != nil {
 		return fmt.Errorf("failed to copy .github directory: %w", err)
 	}
 
-	fmt.Printf("Successfully initialized Konnect configuration in: %s\n", konnectDir)
+	fmt.Printf("Successfully initialized Konnect configuration in: %s\n", dstKonnectDir)
+	fmt.Printf("GitHub workflows have been added to: %s\n", dstGithubDir)
+	fmt.Printf("Updated .gitignore at: %s\n", dstGitignore)
+	fmt.Println("\nNext steps:")
+	fmt.Println("1. Review and customize the konnect.yaml file in the konnect directory")
+	fmt.Println("\t- Configure your team's platform repository in the platform key")
+	fmt.Println("\t- Add and configure your organization's teams and their services teams configuration")
+	fmt.Println("\t- Define your desired Konnect organizational layout in the organizations key")
+	fmt.Println("2. In your Konnect organization, add a System Account named `konnect-orchestrator`")
+	fmt.Println("\t- Assign the `konnect-orchestrator` account the `Organization Admin` role")
+	fmt.Println("\t- Create a new system token for the `konnect-orchestrator` account and store where available to the orchestrator")
+	fmt.Println("3. Configure your Platform GitHub repository with the necessary authorizations for workflows")
+	fmt.Println("\t- Add a `KONNECT_PAT` secret to the repository in the GitHub secrets")
+	fmt.Println("\t- Give Actions read and write permissions in the repository for all scopes. GH Settings")
+	fmt.Println("4. Run 'koctl apply <dir>/konnect/konnect.yaml' to apply your configuration")
 	return nil
 }
 

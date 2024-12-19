@@ -19,14 +19,9 @@ type TeamService interface {
 	UpdateTeam(ctx context.Context, teamID string, updateTeam *components.UpdateTeam, opts ...operations.Option) (*operations.UpdateTeamResponse, error)
 }
 
-type TeamMembershipService interface {
-	ListTeamUsers(ctx context.Context, request operations.ListTeamUsersRequest, opts ...operations.Option) (*operations.ListTeamUsersResponse, error)
-	AddUserToTeam(ctx context.Context, teamID string, addUserToTeam *components.AddUserToTeam, opts ...operations.Option) (*operations.AddUserToTeamResponse, error)
-}
-
 func ApplyTeam(ctx context.Context,
 	teamSvc TeamService,
-	teamMembershipSvc TeamMembershipService,
+	teamMembershipSvc user.TeamMembershipService,
 	userSvc user.UserService,
 	inviteSvc user.InviteService,
 	teamName string,
@@ -75,7 +70,7 @@ func ApplyTeam(ctx context.Context,
 
 	// Step 3: Apply users
 	if len(teamConfig.Users) > 0 {
-		if err := user.ApplyUsers(ctx, userSvc, inviteSvc, teamConfig.Users); err != nil {
+		if err := user.ApplyUsers(ctx, userSvc, inviteSvc, teamID, teamMembershipSvc, teamConfig.Users); err != nil {
 			return "", fmt.Errorf("failed to apply users: %w", err)
 		}
 	}
