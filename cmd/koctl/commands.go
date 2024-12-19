@@ -441,6 +441,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("\t- Configure your team's platform repository in the platform key")
 	fmt.Println("\t- Add and configure your organization's teams and their services teams configuration")
 	fmt.Println("\t- Define your desired Konnect organizational layout in the organizations key")
+	fmt.Println("\t- Commit and push your changes to your platform repository")
 	fmt.Println("2. In your Konnect organization, add a System Account named `konnect-orchestrator`")
 	fmt.Println("\t- Assign the `konnect-orchestrator` account the `Organization Admin` role")
 	fmt.Println("\t- Create a new system token for the `konnect-orchestrator` account and store where available to the orchestrator")

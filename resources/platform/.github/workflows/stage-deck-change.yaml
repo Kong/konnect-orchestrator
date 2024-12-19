@@ -30,8 +30,8 @@ jobs:
         with:
           deck-version: '1.42.0'
           wrapper: false
-
-      - name: Merge and collect team/environment pairs
+      
+      - name: Merge and collect team/environment/service pairs
         id: collect-context
         run: |
           CHANGED_FILES="${{ steps.changed-deck-files.outputs.all_changed_files }}"
@@ -45,14 +45,15 @@ jobs:
             echo "Processing file: $FILE"
             TEAM=$(echo "$FILE" | grep -oP 'teams/[^/]+' | cut -d '/' -f2)
             ENV=$(echo "$FILE" | grep -oP 'envs/[^/]+' | cut -d '/' -f2)
+            SERVICE_NAME=$(echo "$FILE" | grep -oP 'services/[^/]+' | cut -d '/' -f2)
             ENV_DIR=$(dirname "$FILE" | grep -oP 'konnect/[^/]*/envs/[^/]*/teams/[^/]*')
 
-            if [[ -n "$TEAM" && -n "$ENV" && -n "$ENV_DIR" ]]; then
+            if [[ -n "$TEAM" && -n "$ENV" && -n "$SERVICE_NAME" && -n "$ENV_DIR" ]]; then
               KEY="$ENV_DIR"
               if [[ -z "${TEAM_ENV_PAIRS[$KEY]}" ]]; then
                 TEAM_ENV_PAIRS["$KEY"]=1
                 OUTPUT_FILE="$ENV_DIR/kong.yaml"
-                echo "Processing: Team=$TEAM, Environment=$ENV, Directory=$ENV_DIR"
+                echo "Processing: Team=$TEAM, Environment=$ENV, Service=$SERVICE_NAME, Directory=$ENV_DIR"
 
                 # Find and merge all kong-from-oas.yaml files under this directory
                 KONG_FILES=$(find "$ENV_DIR" -name 'kong-from-oas.yaml')
@@ -66,7 +67,7 @@ jobs:
                       if ! git diff --quiet "$OUTPUT_FILE"; then
                         echo "File modified: $OUTPUT_FILE"
                         MODIFIED_FILES+=("$OUTPUT_FILE")
-                        OUTPUT_MATRIX+=("{\"team\":\"$TEAM\",\"env\":\"$ENV\",\"file\":\"$OUTPUT_FILE\"}")
+                        OUTPUT_MATRIX+=("{\"team\":\"$TEAM\",\"env\":\"$ENV\",\"service\":\"$SERVICE_NAME\",\"file\":\"$OUTPUT_FILE\"}")
                       else
                         echo "No changes detected in tracked file: $OUTPUT_FILE"
                         # No action needed if you only care about changed or newly created files
@@ -75,7 +76,7 @@ jobs:
                       # The file is not tracked, so it's newly created
                       echo "File created: $OUTPUT_FILE"
                       MODIFIED_FILES+=("$OUTPUT_FILE")
-                      OUTPUT_MATRIX+=("{\"team\":\"$TEAM\",\"env\":\"$ENV\",\"file\":\"$OUTPUT_FILE\"}")
+                      OUTPUT_MATRIX+=("{\"team\":\"$TEAM\",\"env\":\"$ENV\",\"service\":\"$SERVICE_NAME\",\"file\":\"$OUTPUT_FILE\"}")
                     fi
                   else
                     echo "Failed to create merged file: $OUTPUT_FILE"
@@ -87,6 +88,8 @@ jobs:
               else
                 echo "Skipping already processed team-environment: $KEY"
               fi
+            else
+              echo "Skipping file (missing required components): $FILE"
             fi
           done
 
