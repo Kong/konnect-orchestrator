@@ -26,7 +26,7 @@ func CreateOrUpdatePullRequest(ctx context.Context,
 
 	// First, check if there's an existing PR for this branch
 	existingPRs, _, err := client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
-		Head:  branch,
+		Head:  fmt.Sprintf("%s:%s", owner, branch),
 		Base:  "main",
 		State: "open",
 	})

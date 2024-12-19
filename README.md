@@ -37,3 +37,5 @@ konnect
 
 * GH Actions need PR creation privileges
 * The PR workflows are currently manually created in the repo, eventually by the orchestrator
+* For now, add a `KONNECT_PAT` from a Konnect PAT
+

@@ -1,4 +1,4 @@
-name: Konnect - OAS Conformance
+name: Konnect - OAS conformance
 
 on:
   pull_request:

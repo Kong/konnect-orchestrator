@@ -1,4 +1,4 @@
-name: Konnect - GW Config Conformance
+name: Konnect - decK conformance
 
 on:
   pull_request:
@@ -8,11 +8,6 @@ jobs:
   lint-deck: 
     runs-on: ubuntu-latest
     steps:
-
-      - name: Dump GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: echo "$GITHUB_CONTEXT"
 
       - name: Checkout Repository
         uses: actions/checkout@v3
