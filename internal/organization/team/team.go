@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/organization/user"
 	kk "github.com/Kong/sdk-konnect-go"
 	"github.com/Kong/sdk-konnect-go/models/components"
@@ -18,65 +19,58 @@ type TeamService interface {
 	UpdateTeam(ctx context.Context, teamID string, updateTeam *components.UpdateTeam, opts ...operations.Option) (*operations.UpdateTeamResponse, error)
 }
 
-type TeamMembershipService interface {
-	ListTeamUsers(ctx context.Context, request operations.ListTeamUsersRequest, opts ...operations.Option) (*operations.ListTeamUsersResponse, error)
-	AddUserToTeam(ctx context.Context, teamID string, addUserToTeam *components.AddUserToTeam, opts ...operations.Option) (*operations.AddUserToTeamResponse, error)
-}
-
-// Team represents a team in the organization
-type Team struct {
-	Name        string                   `json:"name" yaml:"name"`
-	Description string                   `json:"description" yaml:"description"`
-	Users       []string                 `json:"users" yaml:"users"`
-	Services    map[string]ServiceConfig `json:"services" yaml:"services"`
-}
-
-// ServiceConfig represents a service configuration
-type ServiceConfig struct {
-	Name        string `json:"name" yaml:"name"`
-	VCS         string `json:"vcs" yaml:"vcs"`
-	Description string `json:"description" yaml:"description"`
-	SpecPath    string `json:"spec-path" yaml:"spec-path"`
-	KongPath    string `json:"kong-path" yaml:"kong-path"`
-}
-
 func ApplyTeam(ctx context.Context,
 	teamSvc TeamService,
-	teamMembershipSvc TeamMembershipService,
+	teamMembershipSvc user.TeamMembershipService,
 	userSvc user.UserService,
 	inviteSvc user.InviteService,
-	teamConfig Team) (string, error) {
+	teamName string,
+	teamConfig manifest.Team) (string, error) {
 
 	// Step 1: Check if team exists
-	teamID, err := findTeamByName(ctx, teamSvc, teamConfig.Name)
+	var teamID string
+	team, err := findTeamByName(ctx, teamSvc, teamName)
 	if err != nil {
 		return "", fmt.Errorf("failed to find team: %w", err)
 	}
 
 	// Step 2: Create or Update based on existence
-	if teamID == "" {
+	if team == nil {
 		// Create new team
-		_, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
-			Name:        teamConfig.Name,
+		resp, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
+			Name:        teamName,
 			Description: kk.String(teamConfig.Description),
 		})
 		if err != nil {
 			return "", fmt.Errorf("failed to create team: %w", err)
 		}
+		teamID = *resp.Team.ID
 	} else {
 		// Update existing team
-		_, err = teamSvc.UpdateTeam(ctx, teamID, &components.UpdateTeam{
-			Name:        kk.String(teamConfig.Name),
-			Description: kk.String(teamConfig.Description),
-		})
-		if err != nil {
-			return "", fmt.Errorf("failed to update team: %w", err)
+		teamID = *team.ID
+		// Only update if there are differences
+		needsUpdate := false
+		if *team.Name != teamName {
+			needsUpdate = true
+		}
+		if (team.Description == nil && teamConfig.Description != "") ||
+			(team.Description != nil && *team.Description != teamConfig.Description) {
+			needsUpdate = true
+		}
+		if needsUpdate {
+			_, err = teamSvc.UpdateTeam(ctx, teamID, &components.UpdateTeam{
+				Name:        kk.String(teamName),
+				Description: kk.String(teamConfig.Description),
+			})
+			if err != nil {
+				return "", fmt.Errorf("failed to update team: %w", err)
+			}
 		}
 	}
 
 	// Step 3: Apply users
 	if len(teamConfig.Users) > 0 {
-		if err := user.ApplyUsers(ctx, userSvc, inviteSvc, teamConfig.Users); err != nil {
+		if err := user.ApplyUsers(ctx, userSvc, inviteSvc, teamID, teamMembershipSvc, teamConfig.Users); err != nil {
 			return "", fmt.Errorf("failed to apply users: %w", err)
 		}
 	}
@@ -85,20 +79,20 @@ func ApplyTeam(ctx context.Context,
 }
 
 // findTeamByName searches for a team by name and returns its ID if found, empty string if not found
-func findTeamByName(ctx context.Context, teamSvc TeamService, teamName string) (string, error) {
+func findTeamByName(ctx context.Context, teamSvc TeamService, teamName string) (*components.Team, error) {
 	// List all teams
 	resp, err := teamSvc.ListTeams(ctx, operations.ListTeamsRequest{})
 	if err != nil {
-		return "", fmt.Errorf("failed to list teams: %w", err)
+		return nil, fmt.Errorf("failed to list teams: %w", err)
 	}
 
 	// Search for team with matching name
 	for _, team := range resp.TeamCollection.Data {
 		if team.Name != nil && *team.Name == teamName {
-			return *team.ID, nil
+			return &team, nil
 		}
 	}
 
 	// Team not found
-	return "", nil
+	return nil, nil
 }

@@ -1,0 +1,83 @@
+---
+# Starter Template for Konnect Orchestrator Configuration
+# This file serves as a template to define the configuration required for the orchestrator.
+# Fill in the fields with values specific to your setup.
+# Comments explain the purpose of each key and value.
+
+# The platform key defines the platform team configuration.
+platform:
+  # Repository where platform team automations, configuration, and other code is written to
+  git:
+    remote: https://github.com/your-org/platform.git # Replace with your platform's git repository URL.
+    author:
+      name: "Your Automation Name" # Example: "Konnect Orchestrator"
+      email: "your-email@example.com" # Example: "ko@yourorg.com"
+    github:
+      token: &platform_github_token
+        type: file # Options: `file`, `env`, or `literal`.
+        value: $HOME/.github/your-platform-token.pat # Path to your GitHub Personal Access Token (PAT).
+    auth: # Used for git authorization.
+      # `type` is required and can be either: `ssh` or `token`.
+      type: token # Example: `token` or `ssh`.
+      token: *platform_github_token
+      # ssh:  
+      #   key:
+      #     type: file
+      #     value: $HOME/.ssh/id_ed25519 # Path to your SSH private key.
+
+# The teams key defines your organizational layout of engineering teams and services they build and support. 
+teams:
+  # teams are defined by a key that represents the team name and an object with the team's configuration.
+  example-team: # Replace with your team name, e.g., `backend-team`.
+    description: Description of your team. # Example: "Backend Development Team"
+    users:
+      # List the email addresses of team members. They will be invited to Konnect if not already registered.
+      - "user1@example.com"
+      - "user2@example.com"
+    # services are the applications this team builds and maintains.
+    services:
+      # Define services this team builds and maintains.
+      your-org/example-service: # Use a hierarchical service name to group services by organization.
+        name: example-service # Short name for the service.
+        description: Brief description of the service. # Example: "Handles API requests for customer data."
+        git:
+          remote: git@github.com:your-org/example-service.git # Repository for the service.
+          auth:
+            type: ssh # Example: `ssh`.
+            ssh:
+              key:
+                type: file
+                value: $HOME/.ssh/id_ed25519 # Path to your SSH private key.
+        spec-path: openapi.yaml # Path to the OpenAPI spec, relative to the repository root.
+
+# The organizations field defines the structure of your managed teams and services 
+# across one or more Konnect Organizations and environments.
+organizations:
+  # Replace `YourOrg` with your organization name. This should relate to a Konnect Organization you have created
+  # Multiple organizations are supported
+  YourOrg:
+    # This is the Konnect access token, use an Organization Admin system account token or Personal Access token
+    access-token:
+      type: file # Options: `file`, `env`, or `literal`.
+      value: $HOME/.konnect/your-org-access-token.pat # Path to your Konnect access token.
+    # Environments inside of Konnect are "implied", meaning that they are accomplished by using
+    # resource naming prefixes to differentiate between environments.
+    environments:
+      dev:
+        # environment type can be either `DEV` or `PROD`, and different policies will be applied based on the choice
+        type: DEV # Environment type, either `DEV` or `PROD`.
+        region: us # Region, e.g., `us`, `eu`, etc.
+        teams:
+          example-team:
+            services:
+              your-org/example-service: # this key must match a service key in the `teams` section
+                # The branch is used to read resources from the service repo to write to the platform repo
+                branch: dev # Branch for environment-specific resources.
+      prod:
+        type: PROD
+        region: us
+        teams:
+          example-team:
+            services:
+              your-org/example-service:
+                branch: main # Branch for production resources.
