@@ -1,0 +1,18 @@
+rules:
+  route-https-check:
+    description: "Ensure https usage in Kong GW Routes, except for acme-dummy-service"
+    given: $.services[?(@.name != "acme-dummy-service")].routes[*].protocols[*]
+    severity: error
+    then:
+      function: enumeration
+      functionOptions:
+        values: "https"
+  svc-plugin-check-check-list:
+    description: "Ensure all plugins present are enabled for Kong GW Services"
+    given: "$.services[*].plugins[*].enabled"
+    severity: error
+    then:
+      function: pattern
+      functionOptions:
+        match: "^true$"
+

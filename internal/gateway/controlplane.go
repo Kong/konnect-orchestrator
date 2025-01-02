@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Kong/konnect-orchestrator/internal"
+	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	kk "github.com/Kong/sdk-konnect-go"
 	"github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/Kong/sdk-konnect-go/models/operations"
@@ -18,7 +18,12 @@ type ControlPlaneService interface {
 }
 
 // ApplyControlPlane ensures that a control plane exists for a team in a specific environment
-func ApplyControlPlane(ctx context.Context, cpSvc ControlPlaneService, envName string, env internal.EnvironmentManifest, teamName string) (string, error) {
+func ApplyControlPlane(
+	ctx context.Context,
+	cpSvc ControlPlaneService,
+	envName string,
+	env manifest.Environment,
+	teamName string) (string, error) {
 	// Control plane name follows convention: team-name-environment-name
 	cpName := fmt.Sprintf("%s-%s", teamName, envName)
 

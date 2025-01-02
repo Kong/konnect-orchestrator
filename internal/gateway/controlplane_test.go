@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Kong/konnect-orchestrator/internal"
+	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	kk "github.com/Kong/sdk-konnect-go"
 	"github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/Kong/sdk-konnect-go/models/operations"
@@ -17,7 +17,7 @@ func TestApplyControlPlane(t *testing.T) {
 	tests := []struct {
 		name       string
 		envName    string
-		env        internal.EnvironmentManifest
+		env        manifest.Environment
 		teamName   string
 		setup      func(*MockControlPlaneService)
 		wantErr    bool
@@ -26,7 +26,7 @@ func TestApplyControlPlane(t *testing.T) {
 		{
 			name:    "creates new control plane with labels",
 			envName: "DEV",
-			env: internal.EnvironmentManifest{
+			env: manifest.Environment{
 				Type:   "DEV",
 				Region: "us",
 			},
@@ -65,7 +65,7 @@ func TestApplyControlPlane(t *testing.T) {
 		{
 			name:    "updates existing control plane with new labels",
 			envName: "PROD",
-			env: internal.EnvironmentManifest{
+			env: manifest.Environment{
 				Type:   "PROD",
 				Region: "us",
 			},
@@ -105,7 +105,7 @@ func TestApplyControlPlane(t *testing.T) {
 		{
 			name:    "handles list error",
 			envName: "DEV",
-			env: internal.EnvironmentManifest{
+			env: manifest.Environment{
 				Type:   "DEV",
 				Region: "us",
 			},
