@@ -24,8 +24,12 @@ func ApplyControlPlane(
 	envName string,
 	env manifest.Environment,
 	teamName string) (string, error) {
-	// Control plane name follows convention: team-name-environment-name
-	cpName := fmt.Sprintf("%s-%s", teamName, envName)
+
+	cpName := env.Teams[teamName].ControlPlaneName
+	if cpName == "" {
+		// Control plane name follows convention: team-name-environment-name
+		cpName = fmt.Sprintf("%s-%s", teamName, envName)
+	}
 
 	// Create labels map with both env and team labels
 	labels := map[string]string{
