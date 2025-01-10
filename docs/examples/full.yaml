@@ -96,6 +96,10 @@ organizations:
         # Here we are defining which team's services are deployed to this environment
         teams:
           flight-data:
+            # By default the control plane name is derived as `<team-name>-<environment-name>`.
+            #   This allows for an override and for teams to share control plane instances within an
+            #   environment.
+            control-plane-name: flight-data-dev
             services:
               KongAirlines/routes:
                 # The branch tells the orchestrator where to find environment specific resources

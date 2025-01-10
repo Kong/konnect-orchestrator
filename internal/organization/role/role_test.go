@@ -23,74 +23,13 @@ func TestApplyRoles(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "successfully assigns viewer role for DEV environment",
+			name:    "successfully assigns admin role for DEV environment",
 			envType: DEV,
 			region:  "us",
 			teamID:  "team-123",
 			cpID:    "cp-123",
 			setup: func(m *MockRoleService) {
 				// Mock ListTeamRoles - return empty list (no existing roles)
-				m.On("ListTeamRoles",
-					mock.Anything,
-					"team-123",
-					&operations.ListTeamRolesQueryParamFilter{
-						RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Viewer")),
-						EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
-					},
-				).Return(&operations.ListTeamRolesResponse{
-					AssignedRoleCollection: &components.AssignedRoleCollection{
-						Data: []components.AssignedRole{},
-					},
-				}, nil)
-
-				// Mock TeamsAssignRole - successful assignment
-				m.On("TeamsAssignRole",
-					mock.Anything,
-					"team-123",
-					&components.AssignRole{
-						RoleName:       kk.Pointer(components.RoleName("Viewer")),
-						EntityID:       kk.Pointer("cp-123"),
-						EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion("us")),
-						EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
-					},
-				).Return(&operations.TeamsAssignRoleResponse{}, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name:    "skips assignment when viewer role already exists for DEV",
-			envType: DEV,
-			region:  "us",
-			teamID:  "team-123",
-			cpID:    "cp-123",
-			setup: func(m *MockRoleService) {
-				m.On("ListTeamRoles",
-					mock.Anything,
-					"team-123",
-					&operations.ListTeamRolesQueryParamFilter{
-						RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Viewer")),
-						EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
-					},
-				).Return(&operations.ListTeamRolesResponse{
-					AssignedRoleCollection: &components.AssignedRoleCollection{
-						Data: []components.AssignedRole{
-							{
-								RoleName: kk.String("Viewer"),
-								EntityID: kk.String("cp-123"),
-							},
-						},
-					},
-				}, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name:    "successfully assigns admin role for PROD environment",
-			envType: PROD,
-			region:  "us",
-			teamID:  "team-123",
-			cpID:    "cp-123",
-			setup: func(m *MockRoleService) {
 				m.On("ListTeamRoles",
 					mock.Anything,
 					"team-123",
@@ -104,11 +43,72 @@ func TestApplyRoles(t *testing.T) {
 					},
 				}, nil)
 
+				// Mock TeamsAssignRole - successful assignment
 				m.On("TeamsAssignRole",
 					mock.Anything,
 					"team-123",
 					&components.AssignRole{
 						RoleName:       kk.Pointer(components.RoleName("Admin")),
+						EntityID:       kk.Pointer("cp-123"),
+						EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion("us")),
+						EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
+					},
+				).Return(&operations.TeamsAssignRoleResponse{}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:    "skips assignment when admin role already exists for DEV",
+			envType: DEV,
+			region:  "us",
+			teamID:  "team-123",
+			cpID:    "cp-123",
+			setup: func(m *MockRoleService) {
+				m.On("ListTeamRoles",
+					mock.Anything,
+					"team-123",
+					&operations.ListTeamRolesQueryParamFilter{
+						RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Admin")),
+						EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
+					},
+				).Return(&operations.ListTeamRolesResponse{
+					AssignedRoleCollection: &components.AssignedRoleCollection{
+						Data: []components.AssignedRole{
+							{
+								RoleName: kk.String("Admin"),
+								EntityID: kk.String("cp-123"),
+							},
+						},
+					},
+				}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:    "successfully assigns viewer role for PROD environment",
+			envType: PROD,
+			region:  "us",
+			teamID:  "team-123",
+			cpID:    "cp-123",
+			setup: func(m *MockRoleService) {
+				m.On("ListTeamRoles",
+					mock.Anything,
+					"team-123",
+					&operations.ListTeamRolesQueryParamFilter{
+						RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Viewer")),
+						EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
+					},
+				).Return(&operations.ListTeamRolesResponse{
+					AssignedRoleCollection: &components.AssignedRoleCollection{
+						Data: []components.AssignedRole{},
+					},
+				}, nil)
+
+				m.On("TeamsAssignRole",
+					mock.Anything,
+					"team-123",
+					&components.AssignRole{
+						RoleName:       kk.Pointer(components.RoleName("Viewer")),
 						EntityID:       kk.Pointer("cp-123"),
 						EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion("us")),
 						EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),

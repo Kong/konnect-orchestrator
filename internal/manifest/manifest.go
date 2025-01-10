@@ -31,7 +31,8 @@ type Environment struct {
 }
 
 type TeamEnvironment struct {
-	Services map[string]EnvironmentService `json:"services,omitempty" yaml:"services,omitempty"`
+	ControlPlaneName string                        `json:"control-plane-name,omitempty" yaml:"control-plane-name,omitempty"`
+	Services         map[string]EnvironmentService `json:"services,omitempty" yaml:"services,omitempty"`
 }
 
 type EnvironmentService struct {

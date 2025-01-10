@@ -84,7 +84,7 @@ func ApplyUsers(
 		}
 
 		// TODO: Check for membership first
-		_, err = teamMembershipSvc.AddUserToTeam(ctx, teamID, &components.AddUserToTeam{
+		_, _ = teamMembershipSvc.AddUserToTeam(ctx, teamID, &components.AddUserToTeam{
 			UserID: userID,
 		})
 		// for now ignore errors

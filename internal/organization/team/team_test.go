@@ -35,6 +35,18 @@ func (m *MockInviteService) InviteUser(ctx context.Context, request *components.
 	return args.Get(0).(*operations.InviteUserResponse), args.Error(1)
 }
 
+type MockTeamMembershipService struct {
+	mock.Mock
+}
+
+func (m *MockTeamMembershipService) ListTeamUsers(ctx context.Context, request operations.ListTeamUsersRequest, opts ...operations.Option) (*operations.ListTeamUsersResponse, error) {
+	args := m.Called(ctx, request)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*operations.ListTeamUsersResponse), args.Error(1)
+}
+
 func TestApplyTeam(t *testing.T) {
 	tests := []struct {
 		name    string
