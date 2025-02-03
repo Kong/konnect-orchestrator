@@ -20,8 +20,9 @@ type Service struct {
 }
 
 type Organization struct {
-	AccessToken  Secret                 `json:"access-token" yaml:"access-token"`
-	Environments map[string]Environment `json:"environments,omitempty" yaml:"environments,omitempty"`
+	AccessToken   Secret                 `json:"access-token" yaml:"access-token"`
+	Environments  map[string]Environment `json:"environments,omitempty" yaml:"environments,omitempty"`
+	Authorization Authorization          `json:"authorization,omitempty" yaml:"authorization,omitempty"`
 }
 
 type Environment struct {
@@ -79,4 +80,52 @@ type SSHConfig struct {
 type Author struct {
 	Name  string `json:"name,omitempty" yaml:"name,omitempty"`
 	Email string `json:"email,omitempty" yaml:"email,omitempty"`
+}
+
+// Authorization represents the organization's authentication configuration
+type Authorization struct {
+	BuiltIn      BuiltInAuth  `json:"built-in,omitempty" yaml:"built-in,omitempty"`
+	OIDC         OIDCAuth     `json:"oidc,omitempty" yaml:"oidc,omitempty"`
+	SAML         SAMLAuth     `json:"saml,omitempty" yaml:"saml,omitempty"`
+	TeamMappings TeamMappings `json:"team-mappings" yaml:"team-mappings"`
+}
+
+// BuiltInAuth represents built-in authentication configuration
+type BuiltInAuth struct {
+	Enabled bool `json:"enabled" yaml:"enabled"`
+}
+
+// OIDCAuth represents OIDC authentication configuration
+type OIDCAuth struct {
+	Enabled       bool              `json:"enabled" yaml:"enabled"`
+	LoginPath     string            `json:"login-path" yaml:"login-path"`
+	Issuer        string            `json:"issuer" yaml:"issuer"`
+	ClientID      string            `json:"client-id" yaml:"client-id"`
+	ClientSecret  Secret            `json:"client-secret" yaml:"client-secret"`
+	ClaimMappings map[string]string `json:"claim-mappings" yaml:"claim-mappings"`
+	Scopes        []string          `json:"scopes" yaml:"scopes"`
+}
+
+// SAMLAuth represents SAML authentication configuration
+type SAMLAuth struct {
+	Enabled        bool   `json:"enabled" yaml:"enabled"`
+	LoginPath      string `json:"login-path" yaml:"login-path"`
+	IDPMetadataURL string `json:"idp-metadata-url" yaml:"idp-metadata-url"`
+}
+
+// TeamMappings represents team mapping configuration for SAML
+type TeamMappings struct {
+	BuiltIn BuiltInTeamMapping `json:"built-in" yaml:"built-in"`
+	IDP     IDPTeamMapping     `json:"idp" yaml:"idp"`
+}
+
+// BuiltInTeamMapping represents built-in team mapping configuration
+type BuiltInTeamMapping struct {
+	Enabled bool `json:"enabled" yaml:"enabled"`
+}
+
+// IDPTeamMapping represents IDP team mapping configuration
+type IDPTeamMapping struct {
+	Enabled  bool                `json:"enabled" yaml:"enabled"`
+	Mappings map[string][]string `json:"mappings" yaml:"mappings"`
 }

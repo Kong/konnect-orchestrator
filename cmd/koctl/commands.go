@@ -17,6 +17,8 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/organization/team"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
+	kkInternal "github.com/Kong/sdk-konnect-go-internal"
+	kkCompsInternal "github.com/Kong/sdk-konnect-go-internal/models/components"
 	kkComps "github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -117,6 +119,12 @@ func processOrganization(
 	// Initialize SDK client for this organization
 	sdk := kk.New(
 		kk.WithSecurity(kkComps.Security{
+			PersonalAccessToken: kk.String(accessToken),
+		}),
+	)
+
+	internalSdk := kkInternal.New(
+		kkInternal.WithSecurity(kkCompsInternal.Security{
 			PersonalAccessToken: kk.String(accessToken),
 		}),
 	)
