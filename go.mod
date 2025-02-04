@@ -1,9 +1,9 @@
 module github.com/Kong/konnect-orchestrator
 
-go 1.23.2
+go 1.23.5
 
 require (
-	github.com/Kong/sdk-konnect-go v0.1.17
+	github.com/Kong/sdk-konnect-go v0.2.0
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/google/go-github/v60 v60.0.0
 	github.com/spf13/cobra v1.8.1
@@ -15,7 +15,6 @@ require (
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
-	github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250131030256-6d3aea3abc05 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect

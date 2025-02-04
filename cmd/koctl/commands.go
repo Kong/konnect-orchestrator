@@ -13,12 +13,11 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/git"
 	"github.com/Kong/konnect-orchestrator/internal/git/github"
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
+	"github.com/Kong/konnect-orchestrator/internal/organization/auth"
 	"github.com/Kong/konnect-orchestrator/internal/organization/role"
 	"github.com/Kong/konnect-orchestrator/internal/organization/team"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
-	kkInternal "github.com/Kong/sdk-konnect-go-internal"
-	kkCompsInternal "github.com/Kong/sdk-konnect-go-internal/models/components"
 	kkComps "github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -123,11 +122,16 @@ func processOrganization(
 		}),
 	)
 
-	internalSdk := kkInternal.New(
-		kkInternal.WithSecurity(kkCompsInternal.Security{
-			PersonalAccessToken: kk.String(accessToken),
-		}),
-	)
+	fmt.Printf("Applying organization authorization settings to organization %s\n", orgName)
+	err = auth.ApplyAuthSettings(
+		context.Background(),
+		sdk.AuthSettings,
+		sdk.AuthSettings,
+		orgConfig.Authorization)
+	if err != nil {
+		return fmt.Errorf("failed to apply auth settings for organization %s: %w", orgName, err)
+	}
+	return nil
 
 	// Process each environment in the organization
 	for envName, envConfig := range orgConfig.Environments {

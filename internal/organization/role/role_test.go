@@ -50,7 +50,7 @@ func TestApplyRoles(t *testing.T) {
 					&components.AssignRole{
 						RoleName:       kk.Pointer(components.RoleName("Admin")),
 						EntityID:       kk.Pointer("cp-123"),
-						EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion("us")),
+						EntityRegion:   kk.Pointer(components.EntityRegion("us")),
 						EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
 					},
 				).Return(&operations.TeamsAssignRoleResponse{}, nil)
@@ -110,7 +110,7 @@ func TestApplyRoles(t *testing.T) {
 					&components.AssignRole{
 						RoleName:       kk.Pointer(components.RoleName("Viewer")),
 						EntityID:       kk.Pointer("cp-123"),
-						EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion("us")),
+						EntityRegion:   kk.Pointer(components.EntityRegion("us")),
 						EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
 					},
 				).Return(&operations.TeamsAssignRoleResponse{}, nil)

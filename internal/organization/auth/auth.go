@@ -2,14 +2,19 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/util"
-	kk "github.com/Kong/sdk-konnect-go-internal"
-	"github.com/Kong/sdk-konnect-go-internal/models/components"
-	"github.com/Kong/sdk-konnect-go-internal/models/operations"
+	kk "github.com/Kong/sdk-konnect-go"
+	"github.com/Kong/sdk-konnect-go/models/components"
+	"github.com/Kong/sdk-konnect-go/models/operations"
+	"github.com/Kong/sdk-konnect-go/models/sdkerrors"
 )
+
+// From the Konnect SDK:
+//   * AuthenticationSettings is the response from the /authentication-settings endpoint
 
 type AuthenticationSettingsService interface {
 	GetAuthenticationSettings(ctx context.Context,
@@ -17,6 +22,9 @@ type AuthenticationSettingsService interface {
 	UpdateAuthenticationSettings(ctx context.Context,
 		request *components.UpdateAuthenticationSettings,
 		opts ...operations.Option) (*operations.UpdateAuthenticationSettingsResponse, error)
+	UpdateIdpConfiguration(ctx context.Context,
+		request *components.UpdateIDPConfiguration,
+		opts ...operations.Option) (*operations.UpdateIdpConfigurationResponse, error)
 }
 
 type IdentityProviderConfigService interface {
@@ -37,101 +45,159 @@ type IdentitProviderTeamMappingService interface {
 		opts ...operations.Option) (*operations.UpdateIdpTeamMappingsResponse, error)
 }
 
-func applyAuthSettings(
+func ApplyAuthSettings(
 	ctx context.Context,
 	idpSvc IdentityProviderConfigService,
 	authSvc AuthenticationSettingsService,
 	authSettings manifest.Authorization) error {
 
-	// Auth settings have to be configured in a certain order.
-	// Use the /identity-providers endpoint to manage OIDC and SAML configurations.
-	// 1. If we have an OIDC configuration, search for an OIDC provider config
-	// 2. If we have an OIDC provider config, patch via the found ID
-	// 3. If we do not have an OIDC provider config, POST a new one
-	// 4. If we have a SAML configuration, search for a SAML provider config
-	// 5. If we have a SAML provider config, patch vis the found ID
-	// 6. If we do not have a SAML provider config, POST a new one
-	// 7. PATCH the authentication settings via the /authentication-settings endpoint
-	//    * OIDC and SAMl enabled fields are XOR
-	// 8. PATCH identity-providers enabled flag for specific the specific provider
-	// 9. Next mappings...
+	oidcProviderID := ""
+	samlProviderID := ""
 
-	idps, err := idpSvc.GetIdentityProviders(ctx, &operations.Filter{})
+	// ***********************************************************************************************
+	// First, apply the OIDC configuration which uses the 'legacy' /identity-provider API for now
+	secret, err := util.ResolveSecretValue(authSettings.OIDC.ClientSecret)
 	if err != nil {
-		return fmt.Errorf("failed to get identity providers: %w", err)
+		return fmt.Errorf("failed to resolve OIDC client secret: %w", err)
 	}
+	_, err = authSvc.UpdateIdpConfiguration(ctx, &components.UpdateIDPConfiguration{
+		Issuer:       kk.String(authSettings.OIDC.Issuer),
+		LoginPath:    kk.String(authSettings.OIDC.LoginPath),
+		ClientID:     kk.String(authSettings.OIDC.ClientID),
+		ClientSecret: kk.String(secret),
+		Scopes:       authSettings.OIDC.Scopes,
+		ClaimMappings: &components.UpdateIDPConfigurationClaimMappings{
+			Email:  kk.String(authSettings.OIDC.ClaimMappings["email"]),
+			Name:   kk.String(authSettings.OIDC.ClaimMappings["name"]),
+			Groups: kk.String(authSettings.OIDC.ClaimMappings["groups"]),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create OIDC provider: %w", err)
+	}
+	oidcQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.Filter{
+		Type: &components.StringFieldEqualsFilter{Str: kk.String("oidc")},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get saml identity providers: %w", err)
+	}
+	if len(oidcQueryResponse.IdentityProviders) > 0 {
+		oidcProviderID = *oidcQueryResponse.IdentityProviders[0].ID
+	}
+	// ***********************************************************************************************
 
-	// Search for both the OIDC and SAML Identity Providers
-	var oidcProvider, samlProvider *components.IdentityProvider
-
-	if idps.IdentityProviders != nil {
-		for _, idp := range idps.IdentityProviders {
-			if *idp.Type == components.IdentityProviderTypeOidc {
-				oidcProvider = &idp
-			} else if *idp.Type == components.IdentityProviderTypeOidc {
-				samlProvider = &idp
-			}
+	// ***********************************************************************************************
+	// Now apply the SAML configuration.
+	// Now query for an existing SAML provider specifically, since we'll manage it
+	//	differently then OIDC due to Konnect API limitations
+	samlQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.Filter{
+		Type: &components.StringFieldEqualsFilter{Str: kk.String("saml")},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get saml identity providers: %w", err)
+	}
+	if len(samlQueryResponse.IdentityProviders) > 0 {
+		// update saml provider
+		samlProvider := samlQueryResponse.IdentityProviders[0]
+		samlProviderID = *samlProvider.ID
+		update := components.UpdateIdentityProvider{}
+		doUpdate := false
+		if authSettings.SAML.LoginPath != *samlProvider.LoginPath {
+			update.LoginPath = kk.String(authSettings.SAML.LoginPath)
+			doUpdate = true
 		}
-	}
-
-	if authSettings.OIDC.Enabled {
-		if oidcProvider == nil {
-			secret, err := util.ResolveSecretValue(authSettings.OIDC.ClientSecret)
-			if err != nil {
-				return fmt.Errorf("failed to resolve OIDC client secret: %w", err)
-			}
-
-			// create OIDC provider
-			resp, err := idpSvc.CreateIdentityProvider(ctx, components.CreateIdentityProvider{
-				Type:      components.IdentityProviderTypeOidc.ToPointer(),
-				LoginPath: kk.String(authSettings.OIDC.LoginPath),
-				Config: &components.CreateIdentityProviderConfig{
-					OIDCIdentityProviderConfig: &components.OIDCIdentityProviderConfig{
-						IssuerURL:     authSettings.OIDC.Issuer,
-						ClientID:      authSettings.OIDC.ClientID,
-						ClientSecret:  kk.String(secret),
-						Scopes:        authSettings.OIDC.Scopes,
-						ClaimMappings: nil,
-					},
+		if authSettings.SAML.IDPMetadataURL != *samlProvider.Config.SAMLIdentityProviderConfig.IdpMetadataURL {
+			doUpdate = true
+			update.Config = &components.UpdateIdentityProviderConfig{
+				SAMLIdentityProviderConfigInput: &components.SAMLIdentityProviderConfigInput{
+					IdpMetadataURL: kk.String(authSettings.SAML.IDPMetadataURL),
 				},
-			})
-			if err != nil {
-				return fmt.Errorf("failed to create OIDC provider: %w", err)
 			}
-			oidcProvider = resp.IdentityProvider
-		} else {
-			// update OIDC provider
-			resp, err := idpSvc.UpdateIdentityProvider(ctx, *oidcProvider.ID, components.UpdateIdentityProvider{})
+		}
+		if doUpdate {
+			_, err := idpSvc.UpdateIdentityProvider(ctx,
+				*samlQueryResponse.IdentityProviders[0].ID,
+				update)
+
 			if err != nil {
-				return fmt.Errorf("failed to update OIDC provider: %w", err)
+				return fmt.Errorf("failed to update saml provider: %w", err)
 			}
-			oidcProvider = resp.IdentityProvider
 		}
 	} else {
-		if oidcProvider != nil {
-			// disable OIDC provider
-		}
-	}
-
-	if authSettings.SAML.Enabled {
-		if samlProvider == nil {
-		} else {
-		}
-	} else {
-		if samlProvider != nil {
-		}
-	}
-
-	_, err = authSvc.UpdateAuthenticationSettings(ctx,
-		&components.UpdateAuthenticationSettings{
-			BasicAuthEnabled: kk.Bool(authSettings.BuiltIn.Enabled),
-			OidcAuthEnabled:  kk.Bool(authSettings.OIDC.Enabled),
-			SamlAuthEnabled:  kk.Bool(authSettings.SAML.Enabled),
+		// create new saml provider
+		samlResp, err := idpSvc.CreateIdentityProvider(ctx, components.CreateIdentityProvider{
+			Type:      components.IdentityProviderTypeSaml.ToPointer(),
+			LoginPath: kk.String(authSettings.SAML.LoginPath),
+			Config: &components.CreateIdentityProviderConfig{
+				SAMLIdentityProviderConfigInput: &components.SAMLIdentityProviderConfigInput{
+					IdpMetadataURL: kk.String(authSettings.SAML.IDPMetadataURL),
+				},
+			},
 		})
+		if err != nil {
+			var sdkErr *sdkerrors.SDKError
+			// Right now the create endpoint will return a 200 instead of a 201 as specified causing the
+			//  sdk to barf. This is to ignore that one case.
+			if errors.As(err, &sdkErr) && sdkErr.StatusCode != 200 {
+				return fmt.Errorf("failed to create saml provider: %w", err)
+			}
+		}
+		samlProviderID = *samlResp.IdentityProvider.ID
+	}
+	// ***********************************************************************************************
 
+	// ***********************************************************************************************
+	// Finally, update the authentication settings to enable the desired combination of auth methods.
+
+	_, err = authSvc.UpdateAuthenticationSettings(ctx, &components.UpdateAuthenticationSettings{
+		BasicAuthEnabled: kk.Bool(authSettings.BuiltIn.Enabled),
+		OidcAuthEnabled:  kk.Bool(false),
+		SamlAuthEnabled:  kk.Bool(false),
+	})
 	if err != nil {
 		return fmt.Errorf("failed to update authentication settings: %w", err)
 	}
+
+	_, err = idpSvc.UpdateIdentityProvider(ctx, oidcProviderID, components.UpdateIdentityProvider{
+		Enabled: kk.Bool(false),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to disable OIDC provider: %w", err)
+	}
+	_, err = idpSvc.UpdateIdentityProvider(ctx, samlProviderID, components.UpdateIdentityProvider{
+		Enabled: kk.Bool(false),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to disable SAML provider: %w", err)
+	}
+
+	_, err = authSvc.UpdateAuthenticationSettings(ctx, &components.UpdateAuthenticationSettings{
+		OidcAuthEnabled: kk.Bool(authSettings.OIDC.Enabled),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update authentication settings: %w", err)
+	}
+	_, err = idpSvc.UpdateIdentityProvider(ctx, oidcProviderID, components.UpdateIdentityProvider{
+		Enabled: kk.Bool(authSettings.OIDC.Enabled),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enable OIDC provider: %w", err)
+	}
+
+	_, err = authSvc.UpdateAuthenticationSettings(ctx, &components.UpdateAuthenticationSettings{
+		SamlAuthEnabled: kk.Bool(authSettings.SAML.Enabled),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update authentication settings: %w", err)
+	}
+	_, err = idpSvc.UpdateIdentityProvider(ctx, samlProviderID, components.UpdateIdentityProvider{
+		Enabled: kk.Bool(authSettings.SAML.Enabled),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enable SAML provider: %w", err)
+	}
+
+	// ***********************************************************************************************
 
 	return nil
 }
