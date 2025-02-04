@@ -131,7 +131,6 @@ func processOrganization(
 	if err != nil {
 		return fmt.Errorf("failed to apply auth settings for organization %s: %w", orgName, err)
 	}
-	return nil
 
 	// Process each environment in the organization
 	for envName, envConfig := range orgConfig.Environments {
