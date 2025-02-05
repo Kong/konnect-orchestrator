@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/util"
@@ -40,15 +42,38 @@ type IdentityProviderConfigService interface {
 		opts ...operations.Option) (*operations.UpdateIdentityProviderResponse, error)
 }
 
-type IdentitProviderTeamMappingService interface {
-	UpdateIdpTeamMappings(ctx context.Context,
-		opts ...operations.Option) (*operations.UpdateIdpTeamMappingsResponse, error)
+type TeamsService interface {
+	ListTeams(ctx context.Context,
+		request operations.ListTeamsRequest,
+		opts ...operations.Option) (*operations.ListTeamsResponse, error)
+}
+
+type IdentityProviderTeamMappingService interface {
+	PatchTeamGroupMappings(ctx context.Context,
+		request *components.PatchTeamGroupMappings,
+		opts ...operations.Option) (*operations.PatchTeamGroupMappingsResponse, error)
+}
+
+// getTitleCase converts a slug (with hyphens) into Title Case.
+func getTitleCase(str string) string {
+	// Replace hyphens with spaces
+	str = strings.ReplaceAll(str, "-", " ")
+
+	// Regex to match words
+	re := regexp.MustCompile(`\b\w\S*\b`)
+
+	// Capitalize each word
+	return re.ReplaceAllStringFunc(str, func(txt string) string {
+		return strings.ToUpper(txt[:1]) + strings.ToLower(txt[1:])
+	})
 }
 
 func ApplyAuthSettings(
 	ctx context.Context,
 	idpSvc IdentityProviderConfigService,
 	authSvc AuthenticationSettingsService,
+	teamSvc TeamsService,
+	teamMappingSvc IdentityProviderTeamMappingService,
 	authSettings manifest.Authorization) error {
 
 	oidcProviderID := ""
@@ -125,7 +150,7 @@ func ApplyAuthSettings(
 		}
 	} else {
 		// create new saml provider
-		samlResp, err := idpSvc.CreateIdentityProvider(ctx, components.CreateIdentityProvider{
+		_, err := idpSvc.CreateIdentityProvider(ctx, components.CreateIdentityProvider{
 			Type:      components.IdentityProviderTypeSaml.ToPointer(),
 			LoginPath: kk.String(authSettings.SAML.LoginPath),
 			Config: &components.CreateIdentityProviderConfig{
@@ -142,12 +167,20 @@ func ApplyAuthSettings(
 				return fmt.Errorf("failed to create saml provider: %w", err)
 			}
 		}
-		samlProviderID = *samlResp.IdentityProvider.ID
+		samlQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.Filter{
+			Type: &components.StringFieldEqualsFilter{Str: kk.String("saml")},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to get saml identity providers: %w", err)
+		}
+		if len(samlQueryResponse.IdentityProviders) > 0 {
+			samlProviderID = *samlQueryResponse.IdentityProviders[0].ID
+		}
 	}
 	// ***********************************************************************************************
 
 	// ***********************************************************************************************
-	// Finally, update the authentication settings to enable the desired combination of auth methods.
+	// Then, update the authentication settings and idps to enable the desired combination of auth methods.
 
 	_, err = authSvc.UpdateAuthenticationSettings(ctx, &components.UpdateAuthenticationSettings{
 		BasicAuthEnabled: kk.Bool(authSettings.BuiltIn.Enabled),
@@ -196,8 +229,52 @@ func ApplyAuthSettings(
 	if err != nil {
 		return fmt.Errorf("failed to enable SAML provider: %w", err)
 	}
+	// ***********************************************************************************************
 
 	// ***********************************************************************************************
+	// Now setup the team mappings
+	_, err = authSvc.UpdateAuthenticationSettings(ctx, &components.UpdateAuthenticationSettings{
+		KonnectMappingEnabled: kk.Bool(authSettings.TeamMappings.BuiltIn.Enabled),
+		IdpMappingEnabled:     kk.Bool(authSettings.TeamMappings.IDP.Enabled),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update authentication settings: %w", err)
+	}
+
+	teamSvcResp, err := teamSvc.ListTeams(ctx, operations.ListTeamsRequest{
+		PageSize: kk.Int64(100),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list teams: %w", err)
+	}
+
+	teams := teamSvcResp.TeamCollection.Data
+	var mappings []components.Data
+
+	for cfgTeamName, groups := range authSettings.TeamMappings.IDP.Mappings {
+		teamID := ""
+		for _, team := range teams {
+			konnectTeamName := *team.Name
+			if *team.SystemTeam {
+				konnectTeamName = getTitleCase(*team.Name)
+			}
+			if cfgTeamName == konnectTeamName {
+				teamID = *team.ID
+				break
+			}
+		}
+		mappings = append(mappings, components.Data{
+			TeamID: kk.String(teamID),
+			Groups: groups,
+		})
+	}
+
+	_, err = teamMappingSvc.PatchTeamGroupMappings(ctx, &components.PatchTeamGroupMappings{
+		Data: mappings,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update team group mappings: %w", err)
+	}
 
 	return nil
 }

@@ -127,6 +127,8 @@ func processOrganization(
 		context.Background(),
 		sdk.AuthSettings,
 		sdk.AuthSettings,
+		sdk.Teams,
+		sdk.AuthSettings,
 		orgConfig.Authorization)
 	if err != nil {
 		return fmt.Errorf("failed to apply auth settings for organization %s: %w", orgName, err)
