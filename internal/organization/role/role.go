@@ -50,7 +50,7 @@ func applyProdRoles(
 	_, err = rolesSvc.TeamsAssignRole(ctx, teamID, &components.AssignRole{
 		RoleName:       kk.Pointer(components.RoleName("Viewer")),
 		EntityID:       kk.Pointer(cpID),
-		EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion(envConfig.Region)),
+		EntityRegion:   kk.Pointer(components.EntityRegion(envConfig.Region)),
 		EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
 	})
 	if err != nil {
@@ -84,7 +84,7 @@ func applyDevRoles(
 	_, err = rolesSvc.TeamsAssignRole(ctx, teamID, &components.AssignRole{
 		RoleName:       kk.Pointer(components.RoleName("Admin")),
 		EntityID:       kk.Pointer(cpID),
-		EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion(envConfig.Region)),
+		EntityRegion:   kk.Pointer(components.EntityRegion(envConfig.Region)),
 		EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
 	})
 	if err != nil {
