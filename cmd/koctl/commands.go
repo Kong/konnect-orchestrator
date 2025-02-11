@@ -14,10 +14,13 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/git/github"
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/organization/auth"
+	"github.com/Kong/konnect-orchestrator/internal/organization/portal"
 	"github.com/Kong/konnect-orchestrator/internal/organization/role"
 	"github.com/Kong/konnect-orchestrator/internal/organization/team"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
+	kkInternal "github.com/Kong/sdk-konnect-go-internal"
+	kkInternalComps "github.com/Kong/sdk-konnect-go-internal/models/components"
 	kkComps "github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -139,7 +142,22 @@ func processOrganization(
 
 		fmt.Printf("Processing environment %s in organization %s\n", envName, orgName)
 
-		// Apply the control plane for the team in the environment
+		internalRegionSdk := kkInternal.New(
+			kkInternal.WithSecurity(kkInternalComps.Security{
+				PersonalAccessToken: kkInternal.String(accessToken),
+			}),
+			kkInternal.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", envConfig.Region)),
+		)
+
+		// Apply the Developer Portal configuration for the environment
+		err = portal.ApplyPortalConfig(context.Background(),
+			envName,
+			internalRegionSdk.V3Portals,
+			internalRegionSdk.API)
+		if err != nil {
+			return fmt.Errorf("failed to apply portal configuration: %w", err)
+		}
+
 		regionSpecificSDK := kk.New(
 			kk.WithSecurity(kkComps.Security{
 				PersonalAccessToken: kk.String(accessToken),
@@ -272,6 +290,7 @@ func processOrganization(
 				envConfig); err != nil {
 				return fmt.Errorf("failed to apply team roles: %w", err)
 			}
+
 		}
 	}
 
