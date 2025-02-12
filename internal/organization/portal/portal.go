@@ -35,7 +35,9 @@ func ApplyPortalConfig(
 	ctx context.Context,
 	portalName string,
 	portalsConfigService PortalsConfigService,
-	apisConfigService ApisConfigService) error {
+	apisConfigService ApisConfigService) (string, error) {
+
+	var portalId string
 
 	portals, err := portalsConfigService.ListPortals(ctx, operations.ListPortalsRequest{
 		Filter: &components.PortalFilterParameters{
@@ -47,26 +49,33 @@ func ApplyPortalConfig(
 		},
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if len(portals.ListPortalsResponseV3.Data) < 1 {
-		_, err = portalsConfigService.CreatePortal(ctx, components.CreatePortalV3{
+		newPortal, err := portalsConfigService.CreatePortal(ctx, components.CreatePortalV3{
 			Name:        portalName,
 			DisplayName: kk.String(portalName),
 		})
 		if err != nil {
-			return err
+			return "", err
 		}
+		portalId = newPortal.PortalResponseV3.ID
 	} else {
-		portalId := portals.ListPortalsResponseV3.Data[0].ID
+		portalId = portals.ListPortalsResponseV3.Data[0].ID
 		_, err = portalsConfigService.UpdatePortal(ctx, portalId, components.UpdatePortalV3{
 			DisplayName: kk.String(portalName),
 		})
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return nil
+	return portalId, nil
+}
+
+func ApplyApiConfig(ctx context.Context,
+	apisConfigService ApisConfigService,
+	portalId string) (string, error) {
+	return "", nil
 }

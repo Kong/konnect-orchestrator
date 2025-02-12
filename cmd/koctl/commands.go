@@ -68,7 +68,10 @@ func processService(
 	teamName string,
 	serviceName string,
 	serviceConfig manifest.Service,
-	serviceEnvConfig manifest.EnvironmentService) error {
+	serviceEnvConfig manifest.EnvironmentService,
+	portalId string,
+	region string,
+	accessToken string) error {
 
 	serviceSpec, err := git.GetRemoteFile(
 		serviceConfig.Git,
@@ -103,7 +106,42 @@ func processService(
 			serviceName, err)
 	}
 
+	internalRegionSdk := kkInternal.New(
+		kkInternal.WithSecurity(kkInternalComps.Security{
+			PersonalAccessToken: kkInternal.String(accessToken),
+		}),
+		kkInternal.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
+	)
+
+	// Apply the API configuration for this service api
+	_, err = portal.ApplyApiConfig(
+		context.Background(),
+		internalRegionSdk.API,
+		portalId)
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func processPortal(accessToken string, region string, envName string) (string, error) {
+	internalRegionSdk := kkInternal.New(
+		kkInternal.WithSecurity(kkInternalComps.Security{
+			PersonalAccessToken: kkInternal.String(accessToken),
+		}),
+		kkInternal.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
+	)
+
+	// Apply the Developer Portal configuration for the environment
+	portalId, err := portal.ApplyPortalConfig(context.Background(),
+		envName,
+		internalRegionSdk.V3Portals,
+		internalRegionSdk.API)
+	if err != nil {
+		return "", fmt.Errorf("failed to apply portal configuration: %w", err)
+	}
+	return portalId, nil
 }
 
 func processOrganization(
@@ -140,22 +178,139 @@ func processOrganization(
 	// Process each environment in the organization
 	for envName, envConfig := range orgConfig.Environments {
 
-		fmt.Printf("Processing environment %s in organization %s\n", envName, orgName)
-
-		internalRegionSdk := kkInternal.New(
-			kkInternal.WithSecurity(kkInternalComps.Security{
-				PersonalAccessToken: kkInternal.String(accessToken),
-			}),
-			kkInternal.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", envConfig.Region)),
-		)
-
-		// Apply the Developer Portal configuration for the environment
-		err = portal.ApplyPortalConfig(context.Background(),
-			envName,
-			internalRegionSdk.V3Portals,
-			internalRegionSdk.API)
+		err := processEnvironment(
+			envName, orgName,
+			accessToken,
+			envConfig, teams, platformGit, sdk)
 		if err != nil {
-			return fmt.Errorf("failed to apply portal configuration: %w", err)
+			return err
+		}
+	}
+
+	fmt.Printf("Successfully applied configuration for organization: %s\n", orgName)
+	return nil
+}
+
+func processEnvironment(
+	envName string,
+	orgName string,
+	accessToken string,
+	envConfig manifest.Environment,
+	teams map[string]manifest.Team,
+	platformGit manifest.GitConfig,
+	sdk *kk.SDK) error {
+	fmt.Printf("Processing environment %s in organization %s\n", envName, orgName)
+
+	portalId, err := processPortal(accessToken, envConfig.Region, envName)
+	if err != nil {
+		return err
+	}
+
+	// Process teams within this environment
+	for teamName, teamEnvironmentConfig := range envConfig.Teams {
+
+		fmt.Printf("-Processing team %s\n", teamName)
+
+		// Get the team configuration from the global teams map
+		teamConfig, exists := teams[teamName]
+		if !exists {
+			return fmt.Errorf("team %s referenced in organization %s environment %s not found in teams configuration",
+				teamName, orgName, envName)
+		}
+
+		platformRepoDir, err := git.Clone(platformGit)
+		if err != nil {
+			return fmt.Errorf("failed to clone platform repository: %w", err)
+		}
+
+		// create / checkout branch
+		branchName := fmt.Sprintf("%s-konnect-orchestrator-apply", envName)
+		err = git.CheckoutBranch(platformRepoDir, branchName)
+		if err != nil {
+			return fmt.Errorf("failed to checkout branch: %w", err)
+		}
+
+		// Create folder structure for team services in platform repo
+		for serviceName, serviceEnvConfig := range teamEnvironmentConfig.Services {
+
+			fmt.Printf("--Processing service %s\n", serviceName)
+
+			serviceConfig, exists := teamConfig.Services[serviceName]
+			if !exists {
+				return fmt.Errorf("service %s referenced in team %s in organization %s environment %s not found in team configuration",
+					serviceName, teamName, orgName, envName)
+			}
+
+			if err := processService(
+				platformRepoDir,
+				orgName,
+				envName,
+				teamName,
+				serviceName,
+				serviceConfig,
+				serviceEnvConfig,
+				portalId,
+				envConfig.Region,
+				accessToken); err != nil {
+				return fmt.Errorf("failed to process service %s in team %s in organization %s environment %s: %w",
+					serviceName, teamName, orgName, envName, err)
+			}
+
+		}
+
+		isClean, err := git.IsClean(platformRepoDir)
+		if err != nil {
+			return fmt.Errorf("failed to check if platform repository is clean: %w", err)
+		}
+
+		if !isClean {
+
+			fmt.Printf("-!! Changes detected for team %s in environment %s\n", teamName, envName)
+
+			err = git.Add(platformRepoDir, ".")
+			if err != nil {
+				return fmt.Errorf("failed to add files to commit: %w", err)
+			}
+			// commit changes
+			err = git.Commit(platformRepoDir, "Platform changes via Konnect Orchestrator", platformGit.Author)
+			if err != nil {
+				return fmt.Errorf("failed to commit changes: %w", err)
+			}
+			// push changes
+			err = git.Push(platformRepoDir, platformGit)
+			if err != nil {
+				return fmt.Errorf("failed to push changes: %w", err)
+			}
+
+			_, err := github.CreateOrUpdatePullRequest(
+				context.Background(),
+				"KongAirlines",
+				"platform",
+				branchName,
+				fmt.Sprintf("[Konnect] [%s] Konnect Orchestrator applied changes", envName),
+				fmt.Sprintf("For the %s environment, Konnect Orchestrator has detected changes in upstream service repositories and has generated the associated changes.", envName),
+				platformGit.GitHub,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create or update pull request: %w", err)
+			}
+		} else {
+			fmt.Printf("-No changes for team %s in environment %s\n", teamName, envName)
+		}
+
+		// Create/update the team
+		teamID, err := team.ApplyTeam(
+			context.Background(),
+			sdk.Teams,
+			sdk.TeamMembership,
+			sdk.Users,
+			sdk.Invites,
+			teamName,
+			teamConfig,
+		)
+		if err != nil || teamID == "" {
+			return fmt.Errorf("failed to apply team %s in organization %s environment %s: %w",
+				teamName, orgName, envName, err)
 		}
 
 		regionSpecificSDK := kk.New(
@@ -165,136 +320,29 @@ func processOrganization(
 			kk.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", envConfig.Region)),
 		)
 
-		// Process teams within this environment
-		for teamName, teamEnvironmentConfig := range envConfig.Teams {
+		cpID, err := gateway.ApplyControlPlane(
+			context.Background(),
+			regionSpecificSDK.ControlPlanes,
+			envName,
+			envConfig,
+			teamName)
 
-			fmt.Printf("-Processing team %s\n", teamName)
-
-			// Get the team configuration from the global teams map
-			teamConfig, exists := teams[teamName]
-			if !exists {
-				return fmt.Errorf("team %s referenced in organization %s environment %s not found in teams configuration",
-					teamName, orgName, envName)
-			}
-
-			platformRepoDir, err := git.Clone(platformGit)
-			if err != nil {
-				return fmt.Errorf("failed to clone platform repository: %w", err)
-			}
-
-			// create / checkout branch
-			branchName := fmt.Sprintf("%s-konnect-orchestrator-apply", envName)
-			err = git.CheckoutBranch(platformRepoDir, branchName)
-			if err != nil {
-				return fmt.Errorf("failed to checkout branch: %w", err)
-			}
-
-			// Create folder structure for team services in platform repo
-			for serviceName, serviceEnvConfig := range teamEnvironmentConfig.Services {
-
-				fmt.Printf("--Processing service %s\n", serviceName)
-
-				serviceConfig, exists := teamConfig.Services[serviceName]
-				if !exists {
-					return fmt.Errorf("service %s referenced in team %s in organization %s environment %s not found in team configuration",
-						serviceName, teamName, orgName, envName)
-				}
-
-				if err := processService(
-					platformRepoDir,
-					orgName,
-					envName,
-					teamName,
-					serviceName,
-					serviceConfig,
-					serviceEnvConfig); err != nil {
-					return fmt.Errorf("failed to process service %s in team %s in organization %s environment %s: %w",
-						serviceName, teamName, orgName, envName, err)
-				}
-
-			}
-
-			isClean, err := git.IsClean(platformRepoDir)
-			if err != nil {
-				return fmt.Errorf("failed to check if platform repository is clean: %w", err)
-			}
-
-			if !isClean {
-
-				fmt.Printf("-!! Changes detected for team %s in environment %s\n", teamName, envName)
-
-				err = git.Add(platformRepoDir, ".")
-				if err != nil {
-					return fmt.Errorf("failed to add files to commit: %w", err)
-				}
-				// commit changes
-				err = git.Commit(platformRepoDir, "Platform changes via Konnect Orchestrator", platformGit.Author)
-				if err != nil {
-					return fmt.Errorf("failed to commit changes: %w", err)
-				}
-				// push changes
-				err = git.Push(platformRepoDir, platformGit)
-				if err != nil {
-					return fmt.Errorf("failed to push changes: %w", err)
-				}
-
-				_, err := github.CreateOrUpdatePullRequest(
-					context.Background(),
-					"KongAirlines",
-					"platform",
-					branchName,
-					fmt.Sprintf("[Konnect] [%s] Konnect Orchestrator applied changes", envName),
-					fmt.Sprintf("For the %s environment, Konnect Orchestrator has detected changes in upstream service repositories and has generated the associated changes.", envName),
-					platformGit.GitHub,
-				)
-				if err != nil {
-					return fmt.Errorf("failed to create or update pull request: %w", err)
-				}
-			} else {
-				fmt.Printf("-No changes for team %s in environment %s\n", teamName, envName)
-			}
-
-			// Create/update the team
-			teamID, err := team.ApplyTeam(
-				context.Background(),
-				sdk.Teams,
-				sdk.TeamMembership,
-				sdk.Users,
-				sdk.Invites,
-				teamName,
-				teamConfig,
-			)
-			if err != nil || teamID == "" {
-				return fmt.Errorf("failed to apply team %s in organization %s environment %s: %w",
-					teamName, orgName, envName, err)
-			}
-
-			cpID, err := gateway.ApplyControlPlane(
-				context.Background(),
-				regionSpecificSDK.ControlPlanes,
-				envName,
-				envConfig,
-				teamName)
-
-			if err != nil || cpID == "" {
-				return fmt.Errorf("failed to apply control plane for team %s in organization %s environment %s: %w",
-					teamName, orgName, envName, err)
-			}
-
-			// Apply roles for the team in the environment
-			if err := role.ApplyRoles(
-				context.Background(),
-				sdk.Roles,
-				teamID,
-				cpID,
-				envConfig); err != nil {
-				return fmt.Errorf("failed to apply team roles: %w", err)
-			}
-
+		if err != nil || cpID == "" {
+			return fmt.Errorf("failed to apply control plane for team %s in organization %s environment %s: %w",
+				teamName, orgName, envName, err)
 		}
-	}
 
-	fmt.Printf("Successfully applied configuration for organization: %s\n", orgName)
+		// Apply roles for the team in the environment
+		if err := role.ApplyRoles(
+			context.Background(),
+			sdk.Roles,
+			teamID,
+			cpID,
+			envConfig); err != nil {
+			return fmt.Errorf("failed to apply team roles: %w", err)
+		}
+
+	}
 	return nil
 }
 
