@@ -65,6 +65,7 @@ func processService(
 	platformRepoDir string,
 	orgName string,
 	envName string,
+	envType string,
 	teamName string,
 	serviceName string,
 	serviceConfig manifest.Service,
@@ -113,10 +114,18 @@ func processService(
 		kkInternal.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
 	)
 
+	apiName := serviceConfig.Name
+	if envType != "PROD" {
+		apiName = fmt.Sprintf("%s-%s", apiName, envType)
+	}
+
 	// Apply the API configuration for this service api
-	_, err = portal.ApplyApiConfig(
+	err = portal.ApplyApiConfig(
 		context.Background(),
 		internalRegionSdk.API,
+		apiName,
+		serviceConfig,
+		serviceSpec,
 		portalId)
 	if err != nil {
 		return err
@@ -245,6 +254,7 @@ func processEnvironment(
 				platformRepoDir,
 				orgName,
 				envName,
+				envConfig.Type,
 				teamName,
 				serviceName,
 				serviceConfig,

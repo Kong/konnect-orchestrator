@@ -3,6 +3,9 @@ package portal
 import (
 	"context"
 
+	"gopkg.in/yaml.v3"
+
+	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	kk "github.com/Kong/sdk-konnect-go-internal"
 	"github.com/Kong/sdk-konnect-go-internal/models/components"
 	"github.com/Kong/sdk-konnect-go-internal/models/operations"
@@ -76,6 +79,73 @@ func ApplyPortalConfig(
 
 func ApplyApiConfig(ctx context.Context,
 	apisConfigService ApisConfigService,
-	portalId string) (string, error) {
-	return "", nil
+	apiName string,
+	serviceConfig manifest.Service,
+	rawSpec []byte,
+	portalId string) error {
+
+	var spec map[string]interface{}
+	err := yaml.Unmarshal(rawSpec, &spec)
+	if err != nil {
+		return err
+	}
+
+	// Extract the version
+	var version string
+	if info, ok := spec["info"].(map[string]interface{}); ok {
+		version = info["version"].(string)
+	}
+
+	//var api *components.APIResponseSchema
+
+	// **************************************************************************
+	// Search for existing API by name and version
+	resp, err := apisConfigService.ListApis(ctx,
+		operations.ListApisRequest{
+			Filter: &components.APIFilterParameters{
+				Name: &components.StringFieldFilter{
+					StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
+						Str: kk.String(apiName),
+					},
+				},
+				Version: &components.StringFieldFilter{
+					StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
+						Str: kk.String(version),
+					},
+				},
+			},
+		})
+	if err != nil {
+		return err
+	}
+	// **************************************************************************
+
+	// **************************************************************************
+	// Create a new or use the existing API
+	if len(resp.ListAPIResponse.Data) < 1 {
+		_, err := apisConfigService.CreateAPI(ctx,
+			components.CreateAPIRequest{
+				Name:        apiName,
+				Version:     kk.String(version),
+				Description: kk.String(serviceConfig.Description),
+			})
+		if err != nil {
+			return err
+		}
+		//api = createResponse.APIResponseSchema
+	} else {
+		//api = &resp.ListAPIResponse.Data[0]
+	}
+	// **************************************************************************
+
+	// **************************************************************************
+	// Update the API Spec
+	// **************************************************************************
+
+	// **************************************************************************
+	// Publish the API to the portal
+
+	// **************************************************************************
+
+	return err
 }
