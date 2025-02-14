@@ -123,6 +123,8 @@ func processService(
 	err = portal.ApplyApiConfig(
 		context.Background(),
 		internalRegionSdk.API,
+		internalRegionSdk.APISpecification,
+		internalRegionSdk.APIPublication,
 		apiName,
 		serviceConfig,
 		serviceSpec,
@@ -134,7 +136,7 @@ func processService(
 	return nil
 }
 
-func processPortal(accessToken string, region string, envName string) (string, error) {
+func processPortal(accessToken string, region string, envName string, envType string) (string, error) {
 	internalRegionSdk := kkInternal.New(
 		kkInternal.WithSecurity(kkInternalComps.Security{
 			PersonalAccessToken: kkInternal.String(accessToken),
@@ -145,6 +147,7 @@ func processPortal(accessToken string, region string, envName string) (string, e
 	// Apply the Developer Portal configuration for the environment
 	portalId, err := portal.ApplyPortalConfig(context.Background(),
 		envName,
+		envType,
 		internalRegionSdk.V3Portals,
 		internalRegionSdk.API)
 	if err != nil {
@@ -210,7 +213,7 @@ func processEnvironment(
 	sdk *kk.SDK) error {
 	fmt.Printf("Processing environment %s in organization %s\n", envName, orgName)
 
-	portalId, err := processPortal(accessToken, envConfig.Region, envName)
+	portalId, err := processPortal(accessToken, envConfig.Region, envName, envConfig.Type)
 	if err != nil {
 		return err
 	}

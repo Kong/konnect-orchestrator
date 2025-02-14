@@ -33,10 +33,30 @@ type ApisConfigService interface {
 		opts ...operations.Option) (*operations.CreateAPIResponse, error)
 }
 
+type ApiSpecsConfigService interface {
+	CreateAPISpec(ctx context.Context,
+		apiID string,
+		createAPISpecRequest components.CreateAPISpecRequest,
+		opts ...operations.Option) (*operations.CreateAPISpecResponse, error)
+	UpdateAPISpec(ctx context.Context,
+		request operations.UpdateAPISpecRequest,
+		opts ...operations.Option) (*operations.UpdateAPISpecResponse, error)
+	ListAPISpecs(ctx context.Context,
+		request operations.ListAPISpecsRequest,
+		opts ...operations.Option) (*operations.ListAPISpecsResponse, error)
+}
+
+type ApiPublicationConfigService interface {
+	PublishAPIToPortal(ctx context.Context,
+		request operations.PublishAPIToPortalRequest,
+		opts ...operations.Option) (*operations.PublishAPIToPortalResponse, error)
+}
+
 // If you change the name of a portal, a new one will be created an the old one remains
 func ApplyPortalConfig(
 	ctx context.Context,
-	portalName string,
+	envName string,
+	envType string,
 	portalsConfigService PortalsConfigService,
 	apisConfigService ApisConfigService) (string, error) {
 
@@ -46,7 +66,7 @@ func ApplyPortalConfig(
 		Filter: &components.PortalFilterParameters{
 			Name: &components.StringFieldFilter{
 				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-					Str: kk.String(portalName),
+					Str: kk.String(envName),
 				},
 			},
 		},
@@ -55,10 +75,20 @@ func ApplyPortalConfig(
 		return "", err
 	}
 
+	// PROD portals are open by default, dev portals are secured
+	authEnabled := envType != "PROD"
+	visibility := "public"
+	if envType != "PROD" {
+		visibility = "private"
+	}
+
 	if len(portals.ListPortalsResponseV3.Data) < 1 {
 		newPortal, err := portalsConfigService.CreatePortal(ctx, components.CreatePortalV3{
-			Name:        portalName,
-			DisplayName: kk.String(portalName),
+			Name:                  envName,
+			DisplayName:           kk.String(envName),
+			AuthenticationEnabled: kk.Bool(authEnabled),
+			DefaultAPIVisibility:  components.DefaultAPIVisibility(visibility).ToPointer(),
+			DefaultPageVisibility: components.DefaultPageVisibility(visibility).ToPointer(),
 		})
 		if err != nil {
 			return "", err
@@ -67,7 +97,10 @@ func ApplyPortalConfig(
 	} else {
 		portalId = portals.ListPortalsResponseV3.Data[0].ID
 		_, err = portalsConfigService.UpdatePortal(ctx, portalId, components.UpdatePortalV3{
-			DisplayName: kk.String(portalName),
+			DisplayName:           kk.String(envName),
+			AuthenticationEnabled: kk.Bool(authEnabled),
+			DefaultAPIVisibility:  components.UpdatePortalV3DefaultAPIVisibility(visibility).ToPointer(),
+			DefaultPageVisibility: components.UpdatePortalV3DefaultPageVisibility(visibility).ToPointer(),
 		})
 		if err != nil {
 			return "", err
@@ -79,6 +112,8 @@ func ApplyPortalConfig(
 
 func ApplyApiConfig(ctx context.Context,
 	apisConfigService ApisConfigService,
+	apiSpecsConfigService ApiSpecsConfigService,
+	apiPubConfigService ApiPublicationConfigService,
 	apiName string,
 	serviceConfig manifest.Service,
 	rawSpec []byte,
@@ -96,7 +131,7 @@ func ApplyApiConfig(ctx context.Context,
 		version = info["version"].(string)
 	}
 
-	//var api *components.APIResponseSchema
+	var api *components.APIResponseSchema
 
 	// **************************************************************************
 	// Search for existing API by name and version
@@ -123,7 +158,7 @@ func ApplyApiConfig(ctx context.Context,
 	// **************************************************************************
 	// Create a new or use the existing API
 	if len(resp.ListAPIResponse.Data) < 1 {
-		_, err := apisConfigService.CreateAPI(ctx,
+		createResponse, err := apisConfigService.CreateAPI(ctx,
 			components.CreateAPIRequest{
 				Name:        apiName,
 				Version:     kk.String(version),
@@ -132,20 +167,54 @@ func ApplyApiConfig(ctx context.Context,
 		if err != nil {
 			return err
 		}
-		//api = createResponse.APIResponseSchema
+		api = createResponse.APIResponseSchema
 	} else {
-		//api = &resp.ListAPIResponse.Data[0]
+		api = &resp.ListAPIResponse.Data[0]
 	}
 	// **************************************************************************
 
 	// **************************************************************************
 	// Update the API Spec
+	listSpecResponse, err := apiSpecsConfigService.ListAPISpecs(ctx, operations.ListAPISpecsRequest{
+		APIID: api.ID,
+	})
+	if err != nil {
+		return err
+	}
+	if len(listSpecResponse.ListAPISpecResponse.Data) < 1 {
+		_, err = apiSpecsConfigService.CreateAPISpec(ctx, api.ID, components.CreateAPISpecRequest{
+			Content: string(rawSpec),
+			Type:    components.CreateAPISpecRequestTypeOas3.ToPointer(),
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err = apiSpecsConfigService.UpdateAPISpec(ctx, operations.UpdateAPISpecRequest{
+			APIID:  api.ID,
+			SpecID: listSpecResponse.ListAPISpecResponse.Data[0].ID,
+			APISpec: components.APISpec{
+				Content: kk.String(string(rawSpec)),
+				Type:    components.APISpecTypeOas3.ToPointer(),
+			},
+		})
+		if err != nil {
+			return err
+		}
+	}
 	// **************************************************************************
 
 	// **************************************************************************
 	// Publish the API to the portal
-
+	_, err = apiPubConfigService.PublishAPIToPortal(ctx,
+		operations.PublishAPIToPortalRequest{
+			APIID:    api.ID,
+			PortalID: portalId,
+		})
+	if err != nil {
+		return err
+	}
 	// **************************************************************************
 
-	return err
+	return nil
 }
