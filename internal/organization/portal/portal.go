@@ -55,6 +55,7 @@ type ApiPublicationConfigService interface {
 // If you change the name of a portal, a new one will be created an the old one remains
 func ApplyPortalConfig(
 	ctx context.Context,
+	portalDisplayName string,
 	envName string,
 	envType string,
 	portalsConfigService PortalsConfigService,
@@ -80,15 +81,17 @@ func ApplyPortalConfig(
 	visibility := "public"
 	if envType != "PROD" {
 		visibility = "private"
+		portalDisplayName = portalDisplayName + " (" + envName + ")"
 	}
 
 	if len(portals.ListPortalsResponseV3.Data) < 1 {
 		newPortal, err := portalsConfigService.CreatePortal(ctx, components.CreatePortalV3{
-			Name:                  envName,
-			DisplayName:           kk.String(envName),
-			AuthenticationEnabled: kk.Bool(authEnabled),
-			DefaultAPIVisibility:  components.DefaultAPIVisibility(visibility).ToPointer(),
-			DefaultPageVisibility: components.DefaultPageVisibility(visibility).ToPointer(),
+			Name:                             envName,
+			DisplayName:                      kk.String(portalDisplayName),
+			AuthenticationEnabled:            kk.Bool(authEnabled),
+			DefaultAPIVisibility:             components.DefaultAPIVisibility(visibility).ToPointer(),
+			DefaultPageVisibility:            components.DefaultPageVisibility(visibility).ToPointer(),
+			DefaultApplicationAuthStrategyID: nil,
 		})
 		if err != nil {
 			return "", err
@@ -97,10 +100,11 @@ func ApplyPortalConfig(
 	} else {
 		portalId = portals.ListPortalsResponseV3.Data[0].ID
 		_, err = portalsConfigService.UpdatePortal(ctx, portalId, components.UpdatePortalV3{
-			DisplayName:           kk.String(envName),
-			AuthenticationEnabled: kk.Bool(authEnabled),
-			DefaultAPIVisibility:  components.UpdatePortalV3DefaultAPIVisibility(visibility).ToPointer(),
-			DefaultPageVisibility: components.UpdatePortalV3DefaultPageVisibility(visibility).ToPointer(),
+			DisplayName:                      kk.String(envName),
+			AuthenticationEnabled:            kk.Bool(authEnabled),
+			DefaultAPIVisibility:             components.UpdatePortalV3DefaultAPIVisibility(visibility).ToPointer(),
+			DefaultPageVisibility:            components.UpdatePortalV3DefaultPageVisibility(visibility).ToPointer(),
+			DefaultApplicationAuthStrategyID: nil,
 		})
 		if err != nil {
 			return "", err

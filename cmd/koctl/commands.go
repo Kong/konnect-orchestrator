@@ -116,7 +116,7 @@ func processService(
 
 	apiName := serviceConfig.Name
 	if envType != "PROD" {
-		apiName = fmt.Sprintf("%s-%s", apiName, envType)
+		apiName = fmt.Sprintf("%s-%s", apiName, envName)
 	}
 
 	// Apply the API configuration for this service api
@@ -136,7 +136,7 @@ func processService(
 	return nil
 }
 
-func processPortal(accessToken string, region string, envName string, envType string) (string, error) {
+func processPortal(accessToken string, portalDisplayName string, region string, envName string, envType string) (string, error) {
 	internalRegionSdk := kkInternal.New(
 		kkInternal.WithSecurity(kkInternalComps.Security{
 			PersonalAccessToken: kkInternal.String(accessToken),
@@ -146,6 +146,7 @@ func processPortal(accessToken string, region string, envName string, envType st
 
 	// Apply the Developer Portal configuration for the environment
 	portalId, err := portal.ApplyPortalConfig(context.Background(),
+		portalDisplayName,
 		envName,
 		envType,
 		internalRegionSdk.V3Portals,
@@ -213,7 +214,12 @@ func processEnvironment(
 	sdk *kk.SDK) error {
 	fmt.Printf("Processing environment %s in organization %s\n", envName, orgName)
 
-	portalId, err := processPortal(accessToken, envConfig.Region, envName, envConfig.Type)
+	portalId, err := processPortal(
+		accessToken,
+		orgName,
+		envConfig.Region,
+		envName,
+		envConfig.Type)
 	if err != nil {
 		return err
 	}
