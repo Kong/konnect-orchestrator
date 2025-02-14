@@ -30,7 +30,7 @@ jobs:
         if: steps.changed-oas-files.outputs.any_changed == 'true' 
         uses: kong/setup-deck@v1
         with:
-          deck-version: '1.42.0'
+          deck-version: '1.44.1'
           wrapper: false
 
       - name: Convert and collect team/environment/service pairs
@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload modified files as artifacts
         if: ${{ steps.collect-context.outputs.matrix != '[]' }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: modified-kong-yaml-files
           path: upload_dir/
