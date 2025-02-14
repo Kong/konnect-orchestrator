@@ -31,6 +31,10 @@ type ApisConfigService interface {
 	CreateAPI(ctx context.Context,
 		request components.CreateAPIRequest,
 		opts ...operations.Option) (*operations.CreateAPIResponse, error)
+	UpdateAPI(ctx context.Context,
+		apiID string,
+		updateAPIRequest components.UpdateAPIRequest,
+		opts ...operations.Option) (*operations.UpdateAPIResponse, error)
 }
 
 type ApiSpecsConfigService interface {
@@ -59,7 +63,8 @@ func ApplyPortalConfig(
 	envName string,
 	envType string,
 	portalsConfigService PortalsConfigService,
-	apisConfigService ApisConfigService) (string, error) {
+	apisConfigService ApisConfigService,
+	labels map[string]string) (string, error) {
 
 	var portalId string
 
@@ -92,6 +97,7 @@ func ApplyPortalConfig(
 			DefaultAPIVisibility:             components.DefaultAPIVisibility(visibility).ToPointer(),
 			DefaultPageVisibility:            components.DefaultPageVisibility(visibility).ToPointer(),
 			DefaultApplicationAuthStrategyID: nil,
+			Labels:                           labels,
 		})
 		if err != nil {
 			return "", err
@@ -105,6 +111,7 @@ func ApplyPortalConfig(
 			DefaultAPIVisibility:             components.UpdatePortalV3DefaultAPIVisibility(visibility).ToPointer(),
 			DefaultPageVisibility:            components.UpdatePortalV3DefaultPageVisibility(visibility).ToPointer(),
 			DefaultApplicationAuthStrategyID: nil,
+			Labels:                           labels,
 		})
 		if err != nil {
 			return "", err
@@ -121,7 +128,8 @@ func ApplyApiConfig(ctx context.Context,
 	apiName string,
 	serviceConfig manifest.Service,
 	rawSpec []byte,
-	portalId string) error {
+	portalId string,
+	labels map[string]string) error {
 
 	var spec map[string]interface{}
 	err := yaml.Unmarshal(rawSpec, &spec)
@@ -167,6 +175,7 @@ func ApplyApiConfig(ctx context.Context,
 				Name:        apiName,
 				Version:     kk.String(version),
 				Description: kk.String(serviceConfig.Description),
+				Labels:      labels,
 			})
 		if err != nil {
 			return err
@@ -174,6 +183,17 @@ func ApplyApiConfig(ctx context.Context,
 		api = createResponse.APIResponseSchema
 	} else {
 		api = &resp.ListAPIResponse.Data[0]
+		_, err = apisConfigService.UpdateAPI(ctx,
+			resp.ListAPIResponse.Data[0].ID,
+			components.UpdateAPIRequest{
+				Name:        kk.String(apiName),
+				Version:     kk.String(version),
+				Description: kk.String(serviceConfig.Description),
+				Labels:      labels,
+			})
+		if err != nil {
+			return err
+		}
 	}
 	// **************************************************************************
 

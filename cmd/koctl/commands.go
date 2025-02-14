@@ -72,7 +72,11 @@ func processService(
 	serviceEnvConfig manifest.EnvironmentService,
 	portalId string,
 	region string,
-	accessToken string) error {
+	accessToken string,
+	labels map[string]string) error {
+
+	labels["team-name"] = teamName
+	labels["service-name"] = serviceConfig.Name
 
 	serviceSpec, err := git.GetRemoteFile(
 		serviceConfig.Git,
@@ -128,7 +132,8 @@ func processService(
 		apiName,
 		serviceConfig,
 		serviceSpec,
-		portalId)
+		portalId,
+		labels)
 	if err != nil {
 		return err
 	}
@@ -136,7 +141,14 @@ func processService(
 	return nil
 }
 
-func processPortal(accessToken string, portalDisplayName string, region string, envName string, envType string) (string, error) {
+func processPortal(
+	accessToken string,
+	portalDisplayName string,
+	region string,
+	envName string,
+	envType string,
+	labels map[string]string) (string, error) {
+	// V3 Portals currently require an internal SDK as the API is not yet GA
 	internalRegionSdk := kkInternal.New(
 		kkInternal.WithSecurity(kkInternalComps.Security{
 			PersonalAccessToken: kkInternal.String(accessToken),
@@ -150,7 +162,8 @@ func processPortal(accessToken string, portalDisplayName string, region string, 
 		envName,
 		envType,
 		internalRegionSdk.V3Portals,
-		internalRegionSdk.API)
+		internalRegionSdk.API,
+		labels)
 	if err != nil {
 		return "", fmt.Errorf("failed to apply portal configuration: %w", err)
 	}
@@ -190,7 +203,6 @@ func processOrganization(
 
 	// Process each environment in the organization
 	for envName, envConfig := range orgConfig.Environments {
-
 		err := processEnvironment(
 			envName, orgName,
 			accessToken,
@@ -214,12 +226,20 @@ func processEnvironment(
 	sdk *kk.SDK) error {
 	fmt.Printf("Processing environment %s in organization %s\n", envName, orgName)
 
+	labels := map[string]string{
+		// 'konnect' is a reserved prefix for labels
+		"ko-konnect-orchestrator": "true",
+		"env-name":                envName,
+		"env-type":                envConfig.Type,
+	}
+
 	portalId, err := processPortal(
 		accessToken,
 		orgName,
 		envConfig.Region,
 		envName,
-		envConfig.Type)
+		envConfig.Type,
+		labels)
 	if err != nil {
 		return err
 	}
@@ -270,7 +290,8 @@ func processEnvironment(
 				serviceEnvConfig,
 				portalId,
 				envConfig.Region,
-				accessToken); err != nil {
+				accessToken,
+				labels); err != nil {
 				return fmt.Errorf("failed to process service %s in team %s in organization %s environment %s: %w",
 					serviceName, teamName, orgName, envName, err)
 			}
