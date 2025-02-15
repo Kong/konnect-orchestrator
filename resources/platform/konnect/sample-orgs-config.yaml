@@ -1,0 +1,104 @@
+---
+# Starter Template for Konnect Orchestrator Konnect Organizations Configuration.
+#
+# This file serves as a template to define the configuration required for the Konnect Orchestrator
+# to manage your team's Konnect Organizations and environments.
+#
+# Copy this template file to a new file you will to maintain for your configuration.
+# Re-running the `koctl init` command will overwrite this file, so do not use this file directly for
+# your configuration.
+#
+# Fill in the fields with values specific to your setup.
+# Comments explain the purpose of each key and value.
+
+# Replace `YourOrg` with your organization name. This should relate to a Konnect Organization you have created
+# Multiple organizations are supported
+YourOrg:
+
+  # `authorization` defines the organization's Konnect _user_ authentication configuration,
+  # including IdP configurations and team mappings.
+  # It is recommended to use a single authentication method, however, 
+  # Konnect supports the ability to combine built-in authentication with either OIDC or SAML based SSO. 
+  # Combining both OIDC and SAML based SSO is not supported. Keep built-in authentication enabled 
+  # while you are testing IdP authentication and only disable it after successfully testing your SSO configuration.
+  authorization:
+    # built-in authorization is Konnect's default built in Basic authentication method.
+    built-in:
+      enabled: true
+    # Konnect supports OIDC based SSO authentication. The Okta documentation provides a good example of how to configure this.
+    # https://docs.konghq.com/konnect/org-management/okta-idp/
+    oidc:
+      enabled: true
+      # The login path must be unique across all of Konnect and is used to redirect your users to the IdP login page.
+      login-path: kongairlines
+      # The issuer is the URL of the OIDC provider's authorization server.
+      issuer: https://dev-26696402.okta.com/oauth2/default
+      # The client ID and secret are the credentials that Konnect uses to authenticate with the OIDC provider.
+      client-id: 0oamj7tntcMapIsET5d7
+      client-secret:
+        type: file
+        value: $HOME/.konnect/kongairlines-oidc-client-secret.txt
+      # The claim mappings are used to map the OIDC claims to Konnect user attributes.
+      claim-mappings:
+        email: email
+        name: name
+        groups: groups
+      # The scopes are the OIDC scopes that Konnect requests from the OIDC provider.
+      scopes:
+        - openid
+        - email
+        - profile
+    # Konnect supports SAML based SSO authentication. The Okta documentation provides a good example of how to configure this.
+    # https://docs.konghq.com/konnect/org-management/okta-idp/
+    saml:
+      enabled: false
+      # The login path must be unique across all of Konnect and is used to redirect your users to the IdP login page.
+      login-path: kongairlines_saml
+      # The IdP metadata URL is the URL of the SAML IdP metadata.
+      idp-metadata-url: https://dev-26696402.okta.com/app/exkmoj7cryENs4tDa5d7/sso/saml/metadata
+    # The team mappings are used to map the IdP groups to Konnect teams.
+    team-mappings:
+      # This determines if an admin can manage user and team memberships via the built in Konnect organization capability. 
+      built-in:
+        enabled: true
+      # IdP mappings are used to map IdP groups to Konnect teams.
+      idp:
+        enabled: true
+        # Each Mapping is a Key Value pair, where the key is the IdP group and the value is a list of Konnect teams
+        mappings:
+          "Organization Admin": 
+          - "platform"
+          - "api-admins"
+
+  # This is the Konnect access token used by the Konnect Orchestrator to authenticate with the Konnect APIs.
+  # The Konnect Orchestrator needs broad access to manage all resources across Konnect. Use an **Organization Admin** 
+  # system account token or Personal Access token
+  access-token:
+    type: file # Options: `file`, `env`, or `literal`.
+    value: $HOME/.konnect/your-org-access-token.pat # Path to your Konnect access token.
+
+  # Konnect does not have a native concept of an Environment. In the Konnect Orchestrator, environments are "implied", 
+  # meaning that they are accomplished by using resource naming prefixes and lables to differentiate resources
+  # between environments.
+  environments:
+    # This is the environment name key, this is arbitrary and can be any name you prefer
+    dev:
+      # Environment type can be either `DEV` or `PROD`, and different policies will be applied based on the choice
+      type: DEV # Environment type, either `DEV` or `PROD`.
+      region: us # Region, e.g., `us`, `eu`, etc.
+      # These teams map to the teams defined in the top level teams key. This allows you to layout the
+      # teams in your Konnect organizations idependent of the team configuration details.
+      teams:
+        example-team:
+          services:
+            your-org/example-service: # this key must match a service key in the `teams` section
+              # The branch is used to read resources from the service repo to write to the platform repo
+              branch: dev # Branch for environment-specific resources.
+    prod:
+      type: PROD
+      region: us
+      teams:
+        example-team:
+          services:
+            your-org/example-service:
+              branch: main # Branch for production resources.

@@ -1,0 +1,43 @@
+---
+# Starter Template for Konnect Orchestrator Teams Configuration.
+# 
+# This file serves as a template to define the configuration for the Konnect Orchestrator
+# to manage the configuration for their Service Application teams and services.
+#
+# Copy this template file to a new file you will to maintain for your configuration.
+# Re-running the `koctl init` command will overwrite this file, so do not use this file directly for
+# your configuration.
+#
+# Fill in the fields with values specific to your setup.
+# Comments explain the purpose of each key and value.
+
+# teams are defined by a key that represents the team name and an object with the team's configuration.
+example-team: # Replace with your team name, e.g., `backend-team`.
+  description: Description of your team. # Example: "Backend Development Team"
+  users:
+    # List the email addresses of team members. They will be invited to Konnect if not already registered.
+    - "user1@example.com"
+    - "user2@example.com"
+  # services are the applications this team builds and maintains.
+  services:
+    # Define services this team builds and maintains.
+    your-org/example-service: # Use a hierarchical service name to group services by organization.
+      name: example-service # Short name for the service.
+      description: Brief description of the service. # Example: "Handles API requests for customer data."
+      git:
+        remote: git@github.com:your-org/example-service.git # Repository for the service.
+        auth:
+          type: ssh # Example: `ssh`.
+          ssh:
+            key:
+              type: file
+              value: $HOME/.ssh/id_ed25519 # Path to your SSH private key.
+      spec-path: openapi.yaml # Path to the OpenAPI spec, relative to the repository root.
+
+example-team-2: 
+  description: 
+  users:
+  services:
+    # Define services this team builds and maintains.
+    your-org/example-service-2: # Use a hierarchical service name to group services by organization.
+    # ...

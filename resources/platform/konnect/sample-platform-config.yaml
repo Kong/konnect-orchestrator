@@ -1,0 +1,31 @@
+---
+# Starter Template for Konnect Orchestrator Platform Team Configuration.
+#
+# This file serves as a template to define the configuration required for the Konnect Orchestrator
+# to manage the Platform team's code repository and other configurations.
+#
+# Copy this template file to a new file you will to maintain for your configuration.
+# Re-running the `koctl init` command will overwrite this file, so do not use this file directly for
+# your configuration.
+#
+# Fill in the fields with values specific to your setup.
+# Comments explain the purpose of each key and value.
+
+# Repository where platform team automations, configuration, and other code is written to
+git:
+  remote: https://github.com/your-org/platform.git # Replace with your platform's git repository URL.
+  author:
+    name: "Your Automation Name" # Example: "Konnect Orchestrator"
+    email: "your-email@example.com" # Example: "ko@yourorg.com"
+  github:
+    token: &platform_github_token
+      type: file # Options: `file`, `env`, or `literal`.
+      value: $HOME/.github/your-platform-token.pat # Path to your GitHub Personal Access Token (PAT).
+  auth: # Used for git authorization.
+    # `type` is required and can be either: `ssh` or `token`.
+    type: token # Example: `token` or `ssh`.
+    token: *platform_github_token
+    # ssh:  
+    #   key:
+    #     type: file
+    #     value: $HOME/.ssh/id_ed25519 # Path to your SSH private key.
