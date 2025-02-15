@@ -9,8 +9,15 @@ heavy development and the API and behavior are subject to change.**
 * Add a System Account named `konnect-orchestrator`
 * Assign the `konnect-orchestrator` account the `Organization Admin` role
 * Create a new token for the `konnect-orchestrator` account and store locally
-* Follow the example in [docs/examples/full.yaml](docs/examples/full.yaml) to
-  setup your configuration
+* Initialize your platform repository with the `./koctl init <platform-repo-path>` command
+* Copy the sample template files created in the `konnect` folder to setup your organization's full configuration
+* Run the `./koctl apply --platform <platform-file> --teams <teams-file> --orgs <orgs-file>` command to apply 
+  the configuration to your Konnect organization
+
+### Platform repo requirements
+
+* GH Actions need PR creation privileges (See repo settings)
+* Add a `KONNECT_PAT` secret for your GitHub actions workflow with the contents of the token created for the `konnect-orchestrator` account
 
 ## API Publication Logic
 
@@ -32,10 +39,3 @@ konnect
                 user
                   openapi.yaml
 ```
-
-## Platform repo setup
-
-* GH Actions need PR creation privileges
-* The PR workflows are currently manually created in the repo, eventually by the orchestrator
-* For now, add a `KONNECT_PAT` from a Konnect PAT
-
