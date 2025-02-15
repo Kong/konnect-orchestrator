@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "konnect/**/openapi.yaml"
+  workflow_dispatch:
 
 jobs:
   convert-specs-to-deck:
@@ -19,35 +20,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Collect modified OAS files
-        id: changed-oas-files
-        uses: tj-actions/changed-files@v45
-        with:
-          files: |
-            konnect/**/openapi.yaml
-
       - name: Setup deck
-        if: steps.changed-oas-files.outputs.any_changed == 'true' 
         uses: kong/setup-deck@v1
         with:
           deck-version: '1.44.1'
           wrapper: false
 
-      - name: Convert and collect team/environment/service pairs
-        if: steps.changed-oas-files.outputs.any_changed == 'true' 
+      - name: Collect and convert OAS files 
         id: collect-context
         run: |
-          CHANGED_FILES="${{ steps.changed-oas-files.outputs.all_changed_files }}"
-          echo "Changed files: $CHANGED_FILES"
+          echo "Gathering all konnect/**/openapi.yaml files in the repository..."
+          ALL_OAS_FILES=$(find konnect -type f -name "openapi.yaml")
+
+          echo "All OAS files:"
+          echo "$ALL_OAS_FILES"
 
           OUTPUT_MATRIX=()
           MODIFIED_FILES=()
 
-          for FILE in $CHANGED_FILES; do
+          for FILE in $ALL_OAS_FILES; do
 
             TEAM=$(echo "$FILE" | grep -oP 'teams/[^/]+' | cut -d '/' -f2)
             ENV=$(echo "$FILE" | grep -oP 'envs/[^/]+' | cut -d '/' -f2)
             SERVICE_NAME=$(echo "$FILE" | grep -oP 'services/[^/]+' | cut -d '/' -f2)
+
             echo "Processing: Team=$TEAM, Environment=$ENV, Service=$SERVICE_NAME, File=$FILE"
 
             if [[ -n "$TEAM" && -n "$ENV" && -n "$SERVICE_NAME" ]]; then
@@ -113,7 +109,7 @@ jobs:
         uses: actions/checkout@v3
   
       - name: Download modified files
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: modified-kong-yaml-files
           path: ./download_dir/
