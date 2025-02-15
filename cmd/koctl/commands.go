@@ -26,6 +26,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var loopInterval int
+var platformFileArg string
+var teamsFileArg string
+var organizationsFileArg string
+
 var rootCmd = &cobra.Command{
 	Use:   "koctl",
 	Short: "koctl is a CLI tool for managing Konnect resources",
@@ -33,8 +38,6 @@ var rootCmd = &cobra.Command{
 		return cmd.Help()
 	},
 }
-
-var loopInterval int
 
 var initCmd = &cobra.Command{
 	Use:   "init [directory]",
@@ -45,20 +48,30 @@ and template files required for Konnect orchestration.`,
 	RunE: runInit,
 }
 
-func init() {
-	cobra.OnInitialize(initConfig)
-	rootCmd.AddCommand(applyCmd)
-	rootCmd.AddCommand(initCmd)
-	applyCmd.Flags().IntVarP(&loopInterval, "loop", "l", 0, "Run in a loop with specified interval in seconds (0 = run once)")
+var applyCmd = &cobra.Command{
+	Use:   "apply",
+	Short: "Apply a configuration to Konnect organizations",
+	Long: `The orchestrator will apply a Federated API strategy to one to many Konnect organizations
+based on the input received in 3 files. A Platform team config, a teams configuration, and an organizations configuration. 
+The files should be in YAML format and contain the necessary resource definitions. See the init command for an example of the required structure.`,
+	RunE: runApply,
 }
 
-var applyCmd = &cobra.Command{
-	Use:   "apply [file]",
-	Short: "Apply a configuration from file",
-	Long: `Apply a configuration from a manifest file. 
-The file should be in YAML format and contain the necessary resource definitions.`,
-	Args: cobra.ExactArgs(1),
-	RunE: runApply,
+func init() {
+	applyCmd.Flags().StringVar(&platformFileArg, "platform", "", "Path to the platform configuration file")
+	applyCmd.Flags().StringVar(&teamsFileArg, "teams", "", "Path to the teams configuration file")
+	applyCmd.Flags().StringVar(&organizationsFileArg, "orgs", "", "Path to the organizations configuration file")
+	applyCmd.Flags().IntVarP(&loopInterval, "loop", "l", 0, "Run in a loop with specified interval in seconds (0 = run once)")
+
+	_ = applyCmd.MarkFlagRequired("platform")
+	_ = applyCmd.MarkFlagRequired("teams")
+	_ = applyCmd.MarkFlagRequired("orgs")
+
+	cobra.OnInitialize(initConfig)
+
+	rootCmd.AddCommand(applyCmd)
+	rootCmd.AddCommand(initCmd)
+
 }
 
 func processService(
@@ -386,32 +399,64 @@ func processEnvironment(
 	return nil
 }
 
+func readConfigSection(filePath string, out interface{}) error {
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to make absolute path: %w", err)
+	}
+
+	if _, err := os.Stat(absPath); err != nil {
+		return fmt.Errorf("file not accessible: %w", err)
+	}
+
+	bytes, err := os.ReadFile(absPath)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Try YAML first
+	if err := yaml.Unmarshal(bytes, out); err != nil {
+		// Fall back to JSON if YAML fails
+		if jsonErr := json.Unmarshal(bytes, out); jsonErr != nil {
+			return fmt.Errorf("failed to parse file as YAML or JSON: %v", err)
+		}
+	}
+	return nil
+}
+
 func runApply(cmd *cobra.Command, args []string) error {
-	filePath := args[0]
-
 	applyOnce := func() error {
-		// Validate file exists and is readable
-		absPath, err := filepath.Abs(filePath)
+		platformFilePath, err := filepath.Abs(platformFileArg)
 		if err != nil {
-			return fmt.Errorf("failed to resolve file path: %w", err)
+			return fmt.Errorf("failed to resolve platform file path: %w", err)
 		}
-
-		if _, err := os.Stat(absPath); err != nil {
-			return fmt.Errorf("failed to access file %s: %w", absPath, err)
+		if _, err := os.Stat(platformFilePath); err != nil {
+			return fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
 		}
-
-		// Read and parse the manifest file
-		fileContent, err := os.ReadFile(absPath)
+		teamsFilePath, err := filepath.Abs(teamsFileArg)
 		if err != nil {
-			return fmt.Errorf("failed to read file: %w", err)
+			return fmt.Errorf("failed to resolve teams file path: %w", err)
+		}
+		if _, err := os.Stat(teamsFilePath); err != nil {
+			return fmt.Errorf("failed to access file %s: %w", teamsFilePath, err)
+		}
+		organizationsFilePath, err := filepath.Abs(organizationsFileArg)
+		if err != nil {
+			return fmt.Errorf("failed to resolve organizations file path: %w", err)
+		}
+		if _, err := os.Stat(organizationsFilePath); err != nil {
+			return fmt.Errorf("failed to access file %s: %w", organizationsFilePath, err)
 		}
 
 		var manifest manifest.Orchestrator
-		if err := yaml.Unmarshal(fileContent, &manifest); err != nil {
-			// If YAML parsing fails, try JSON
-			if jsonErr := json.Unmarshal(fileContent, &manifest); jsonErr != nil {
-				return fmt.Errorf("failed to parse manifest as YAML or JSON: %w", err)
-			}
+		if err := readConfigSection(platformFilePath, &manifest.Platform); err != nil {
+			return fmt.Errorf("failed to read platform configuration: %w", err)
+		}
+		if err := readConfigSection(teamsFilePath, &manifest.Teams); err != nil {
+			return fmt.Errorf("failed to read teams configuration: %w", err)
+		}
+		if err := readConfigSection(organizationsFilePath, &manifest.Organizations); err != nil {
+			return fmt.Errorf("failed to read organizations configuration: %w", err)
 		}
 
 		// Process each organization
@@ -421,7 +466,9 @@ func runApply(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		fmt.Printf("Successfully applied configuration from: %s\n", absPath)
+		fmt.Printf("Successfully applied configuration from:\n  - %s\n  - %s\n  - %s\n",
+			platformFileArg, teamsFileArg, organizationsFileArg)
+
 		return nil
 	}
 
