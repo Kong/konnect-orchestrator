@@ -14,7 +14,7 @@ func CreateOrUpdatePullRequest(ctx context.Context,
 	owner, repo, branch, title, body string,
 	githubConfig manifest.GitHubConfig) (*github.PullRequest, error) {
 	// Create GitHub client with token
-	token, err := util.ResolveSecretValue(githubConfig.Token)
+	token, err := util.ResolveSecretValue(*githubConfig.Token)
 	if err != nil {
 		return nil, err
 	}

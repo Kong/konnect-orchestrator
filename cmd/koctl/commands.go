@@ -89,12 +89,12 @@ func processService(
 	labels map[string]string) error {
 
 	labels["team-name"] = teamName
-	labels["service-name"] = serviceConfig.Name
+	labels["service-name"] = *serviceConfig.Name
 
 	serviceSpec, err := git.GetRemoteFile(
-		serviceConfig.Git,
-		serviceEnvConfig.Branch,
-		serviceConfig.SpecPath)
+		*serviceConfig.Git,
+		*serviceEnvConfig.Branch,
+		*serviceConfig.SpecPath)
 	if err != nil {
 		return fmt.Errorf("failed to get service spec for %s: %w",
 			serviceName, err)
@@ -133,7 +133,7 @@ func processService(
 
 	apiName := serviceConfig.Name
 	if envType != "PROD" {
-		apiName = fmt.Sprintf("%s-%s", apiName, envName)
+		apiName = kk.String(fmt.Sprintf("%s-%s", *apiName, envName))
 	}
 
 	// Apply the API configuration for this service api
@@ -142,7 +142,7 @@ func processService(
 		internalRegionSdk.API,
 		internalRegionSdk.APISpecification,
 		internalRegionSdk.APIPublication,
-		apiName,
+		*apiName,
 		serviceConfig,
 		serviceSpec,
 		portalId,
@@ -187,7 +187,7 @@ func processOrganization(
 	orgName string,
 	platformGit manifest.GitConfig,
 	orgConfig manifest.Organization,
-	teams map[string]manifest.Team) error {
+	teams map[string]*manifest.Team) error {
 
 	// Resolve the organization's access token
 	accessToken, err := koUtil.ResolveSecretValue(orgConfig.AccessToken)
@@ -209,7 +209,7 @@ func processOrganization(
 		sdk.AuthSettings,
 		sdk.Teams,
 		sdk.AuthSettings,
-		orgConfig.Authorization)
+		*orgConfig.Authorization)
 	if err != nil {
 		return fmt.Errorf("failed to apply auth settings for organization %s: %w", orgName, err)
 	}
@@ -219,7 +219,7 @@ func processOrganization(
 		err := processEnvironment(
 			envName, orgName,
 			accessToken,
-			envConfig, teams, platformGit, sdk)
+			*envConfig, teams, platformGit, sdk)
 		if err != nil {
 			return err
 		}
@@ -234,7 +234,7 @@ func processEnvironment(
 	orgName string,
 	accessToken string,
 	envConfig manifest.Environment,
-	teams map[string]manifest.Team,
+	teams map[string]*manifest.Team,
 	platformGit manifest.GitConfig,
 	sdk *kk.SDK) error {
 	fmt.Printf("Processing environment %s in organization %s\n", envName, orgName)
@@ -299,8 +299,8 @@ func processEnvironment(
 				envConfig.Type,
 				teamName,
 				serviceName,
-				serviceConfig,
-				serviceEnvConfig,
+				*serviceConfig,
+				*serviceEnvConfig,
 				portalId,
 				envConfig.Region,
 				accessToken,
@@ -325,7 +325,7 @@ func processEnvironment(
 				return fmt.Errorf("failed to add files to commit: %w", err)
 			}
 			// commit changes
-			err = git.Commit(platformRepoDir, "Platform changes via Konnect Orchestrator", platformGit.Author)
+			err = git.Commit(platformRepoDir, "Platform changes via Konnect Orchestrator", *platformGit.Author)
 			if err != nil {
 				return fmt.Errorf("failed to commit changes: %w", err)
 			}
@@ -342,7 +342,7 @@ func processEnvironment(
 				branchName,
 				fmt.Sprintf("[Konnect] [%s] Konnect Orchestrator applied changes", envName),
 				fmt.Sprintf("For the %s environment, Konnect Orchestrator has detected changes in upstream service repositories and has generated the associated changes.", envName),
-				platformGit.GitHub,
+				*platformGit.GitHub,
 			)
 			if err != nil {
 				return fmt.Errorf("failed to create or update pull request: %w", err)
@@ -359,7 +359,7 @@ func processEnvironment(
 			sdk.Users,
 			sdk.Invites,
 			teamName,
-			teamConfig,
+			*teamConfig,
 		)
 		if err != nil || teamID == "" {
 			return fmt.Errorf("failed to apply team %s in organization %s environment %s: %w",
@@ -461,7 +461,7 @@ func runApply(cmd *cobra.Command, args []string) error {
 
 		// Process each organization
 		for orgName, orgConfig := range manifest.Organizations {
-			if err := processOrganization(orgName, manifest.Platform.Git, orgConfig, manifest.Teams); err != nil {
+			if err := processOrganization(orgName, *manifest.Platform.Git, *orgConfig, manifest.Teams); err != nil {
 				return err
 			}
 		}
