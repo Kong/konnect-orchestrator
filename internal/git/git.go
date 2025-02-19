@@ -21,13 +21,13 @@ import (
 // getAuthMethod returns an ssh.AuthMethod based on the git config, or nil if no auth is specified
 func getAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 	// Return nil if no auth configured
-	if gitConfig.Auth.Type == "" {
+	if gitConfig.Auth.Type == nil {
 		return nil, nil
 	}
 
 	// Only support SSH auth for now
-	if gitConfig.Auth.Type == "ssh" {
-		key, err := util.ResolveSecretValue(gitConfig.Auth.SSH.Key)
+	if *gitConfig.Auth.Type == "ssh" {
+		key, err := util.ResolveSecretValue(*gitConfig.Auth.SSH.Key)
 		if err != nil {
 			return nil, err
 		}
@@ -36,8 +36,8 @@ func getAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 			return nil, err
 		}
 		return publicKeys, nil
-	} else if gitConfig.Auth.Type == "token" {
-		key, err := util.ResolveSecretValue(gitConfig.Auth.Token)
+	} else if *gitConfig.Auth.Type == "token" {
+		key, err := util.ResolveSecretValue(*gitConfig.Auth.Token)
 		if err != nil {
 			return nil, err
 		}
@@ -47,7 +47,7 @@ func getAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 		}
 		return bashAuth, nil
 	} else {
-		return nil, errors.New("unsupported auth type: " + gitConfig.Auth.Type)
+		return nil, errors.New("unsupported auth type: " + *gitConfig.Auth.Type)
 	}
 }
 
@@ -63,7 +63,7 @@ func GetRemoteFile(gitConfig manifest.GitConfig, branch, path string) ([]byte, e
 	}
 
 	_, err = git.PlainClone(tempDir, false, &git.CloneOptions{
-		URL:           gitConfig.Remote,
+		URL:           *gitConfig.Remote,
 		Auth:          auth,
 		ReferenceName: plumbing.NewBranchReferenceName(branch),
 	})
@@ -88,7 +88,7 @@ func CloneInto(gitConfig manifest.GitConfig, dir string) error {
 
 	// Clone the repository
 	_, err = git.PlainClone(dir, false, &git.CloneOptions{
-		URL:  gitConfig.Remote,
+		URL:  *gitConfig.Remote,
 		Auth: auth,
 	})
 	return err
@@ -182,8 +182,8 @@ func Commit(dir string, message string, author manifest.Author) error {
 
 	_, err = w.Commit(message, &git.CommitOptions{
 		Author: &object.Signature{
-			Name:  author.Name,
-			Email: author.Email,
+			Name:  *author.Name,
+			Email: *author.Email,
 			When:  time.Now(),
 		},
 	})

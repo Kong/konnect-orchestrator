@@ -174,7 +174,7 @@ func ApplyApiConfig(ctx context.Context,
 			components.CreateAPIRequest{
 				Name:        apiName,
 				Version:     kk.String(version),
-				Description: kk.String(serviceConfig.Description),
+				Description: kk.String(*serviceConfig.Description),
 				Labels:      labels,
 			})
 		if err != nil {
@@ -188,7 +188,7 @@ func ApplyApiConfig(ctx context.Context,
 			components.UpdateAPIRequest{
 				Name:        kk.String(apiName),
 				Version:     kk.String(version),
-				Description: kk.String(serviceConfig.Description),
+				Description: kk.String(*serviceConfig.Description),
 				Labels:      labels,
 			})
 		if err != nil {

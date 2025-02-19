@@ -39,7 +39,7 @@ func ApplyTeam(ctx context.Context,
 		// Create new team
 		resp, err := teamSvc.CreateTeam(ctx, &components.CreateTeam{
 			Name:        teamName,
-			Description: kk.String(teamConfig.Description),
+			Description: teamConfig.Description,
 		})
 		if err != nil {
 			return "", fmt.Errorf("failed to create team: %w", err)
@@ -53,14 +53,14 @@ func ApplyTeam(ctx context.Context,
 		if *team.Name != teamName {
 			needsUpdate = true
 		}
-		if (team.Description == nil && teamConfig.Description != "") ||
-			(team.Description != nil && *team.Description != teamConfig.Description) {
+		if (team.Description == nil && teamConfig.Description != nil) ||
+			(team.Description != nil && *team.Description != *teamConfig.Description) {
 			needsUpdate = true
 		}
 		if needsUpdate {
 			_, err = teamSvc.UpdateTeam(ctx, teamID, &components.UpdateTeam{
 				Name:        kk.String(teamName),
-				Description: kk.String(teamConfig.Description),
+				Description: teamConfig.Description,
 			})
 			if err != nil {
 				return "", fmt.Errorf("failed to update team: %w", err)

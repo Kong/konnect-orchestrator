@@ -25,8 +25,8 @@ func ApplyControlPlane(
 	env manifest.Environment,
 	teamName string) (string, error) {
 
-	cpName := env.Teams[teamName].ControlPlaneName
-	if cpName == "" {
+	var cpName string
+	if env.Teams == nil || env.Teams[teamName].ControlPlaneName == nil {
 		// Control plane name follows convention: team-name-environment-name
 		cpName = fmt.Sprintf("%s-%s", teamName, envName)
 	}

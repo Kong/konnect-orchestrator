@@ -123,6 +123,7 @@ func TestApplyControlPlane(t *testing.T) {
 			mockCPSvc := &MockControlPlaneService{}
 			tt.setup(mockCPSvc)
 
+			fmt.Println(mockCPSvc, tt.envName, tt.env, tt.teamName)
 			id, err := ApplyControlPlane(context.Background(), mockCPSvc, tt.envName, tt.env, tt.teamName)
 
 			if tt.wantErr {

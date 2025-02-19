@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
+	kk "github.com/Kong/sdk-konnect-go"
 	"github.com/Kong/sdk-konnect-go/models/components"
 	"github.com/Kong/sdk-konnect-go/models/operations"
 	"github.com/stretchr/testify/mock"
@@ -57,13 +58,13 @@ func TestApplyTeam(t *testing.T) {
 		{
 			name: "creates new team with services",
 			config: manifest.Team{
-				Description: "A new team",
-				Services: map[string]manifest.Service{
+				Description: kk.String("A new team"),
+				Services: map[string]*manifest.Service{
 					"service1": {
-						Name:        "svc1",
-						Description: "Service 1",
-						Git: manifest.GitConfig{
-							Remote: "https://github.com/org/svc1",
+						Name:        kk.String("svc1"),
+						Description: kk.String("Service 1"),
+						Git: &manifest.GitConfig{
+							Remote: kk.String("https://github.com/org/svc1"),
 						},
 					},
 				},
