@@ -45,7 +45,7 @@ jobs:
             ENV=$(echo "$FILE" | grep -oP 'envs/[^/]+' | cut -d '/' -f2)
             SERVICE_NAME=$(echo "$FILE" | grep -oP 'services/[^/]+' | cut -d '/' -f2)
 
-            echo "Processing: Team=$TEAM, Environment=$ENV, Service=$SERVICE_NAME, File=$FILE"
+            echo "Processing: Org=$ORG, Team=$TEAM, Environment=$ENV, Service=$SERVICE_NAME, File=$FILE"
 
             if [[ -n "$TEAM" && -n "$ENV" && -n "$SERVICE_NAME" ]]; then
               OUTPUT_FILE=$(dirname "$FILE")/kong-from-oas.yaml
@@ -138,7 +138,8 @@ jobs:
           FILE_PATH="${{ matrix.context.file }}"
           DIR=$(dirname "$FILE_PATH")
           FILE_NAME=$(basename "$FILE_PATH")
-          echo "Processing: Team=$TEAM, Environment=$ENV, File=$FILE_PATH"
+          echo "Processing: Org=$ORG, Team=$TEAM, Environment=$ENV, File=$FILE_PATH"
+          echo "org=$ORG" >> $GITHUB_OUTPUT
           echo "team=$TEAM" >> $GITHUB_OUTPUT
           echo "env=$ENV" >> $GITHUB_OUTPUT
           echo "file=$FILE_PATH" >> $GITHUB_OUTPUT
