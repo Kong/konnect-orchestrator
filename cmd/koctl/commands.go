@@ -609,11 +609,11 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println("\t- Add and configure your organization's teams and their services teams configuration")
 	fmt.Println("\t- Define your desired Konnect organizational layout in the organizations key")
 	fmt.Println("\t- Commit and push your changes to your platform repository")
-	fmt.Println("2. In your Konnect organization, add a System Account named `konnect-orchestrator`")
+	fmt.Println("2. In each of your Konnect organizations, add a System Account named `konnect-orchestrator`")
 	fmt.Println("\t- Assign the `konnect-orchestrator` account the `Organization Admin` role")
 	fmt.Println("\t- Create a new system token for the `konnect-orchestrator` account and store where available to the orchestrator")
 	fmt.Println("3. Configure your Platform GitHub repository with the necessary authorizations for workflows")
-	fmt.Println("\t- Add a `KONNECT_PAT` secret to the repository in the GitHub secrets")
+	fmt.Println("\t- For each Konnect organization, add a `<ORG_NAME>_KONNECT_TOKEN` secret to the repository in the GitHub secrets")
 	fmt.Println("\t- Give Actions read and write permissions in the repository for all scopes. GH Settings")
 	fmt.Println("4. Run 'koctl apply <dir>/konnect/konnect.yaml' to apply your configuration")
 	return nil

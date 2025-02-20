@@ -33,12 +33,13 @@ jobs:
 
           # Loop through each changed kong.yaml file
           for FILE in $CHANGED_FILES; do
+            ORG=$(echo "$FILE" | grep -oP 'konnect/[^/]+' | cut -d '/' -f2)
             TEAM=$(echo "$FILE" | grep -oP 'teams/[^/]+' | cut -d '/' -f2)
             ENV=$(echo "$FILE" | grep -oP 'envs/[^/]+' | cut -d '/' -f2)
 
             # Only add to matrix if TEAM and ENV were extracted
             if [[ -n "$TEAM" && -n "$ENV" ]]; then
-              OUTPUT_MATRIX+=("{\"team\":\"$TEAM\",\"env\":\"$ENV\",\"file\":\"$FILE\"}")
+              OUTPUT_MATRIX+=("{\"org\":\"$ORG\",\"team\":\"$TEAM\",\"env\":\"$ENV\",\"file\":\"$FILE\"}")
             else
               echo "Skipping file (no team/env found): $FILE"
             fi
@@ -63,9 +64,11 @@ jobs:
       - name: Extract context
         id: extract-context
         run: |
+          ORG="${{ matrix.context.org }}"
           TEAM="${{ matrix.context.team }}"
           ENV="${{ matrix.context.env }}"
           FILE_PATH="${{ matrix.context.file }}"
+          echo "ORG=$ORG" >> $GITHUB_OUTPUT
           echo "TEAM=$TEAM" >> $GITHUB_OUTPUT
           echo "ENV=$ENV" >> $GITHUB_OUTPUT
           echo "FILE_PATH=$FILE_PATH" >> $GITHUB_OUTPUT
@@ -78,7 +81,7 @@ jobs:
 
       - name: Run deck sync
         env:
-          KONNECT_TOKEN: ${{ secrets.KONNECT_PAT }}
+          KONNECT_TOKEN: ${{ secrets[format('{0}_KONNECT_TOKEN', matrix.context.org)] }}
         run: |
           TEAM="${{ steps.extract-context.outputs.TEAM }}"
           ENV="${{ steps.extract-context.outputs.ENV }}"
