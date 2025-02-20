@@ -152,7 +152,8 @@ jobs:
           ENV="${{ matrix.context.env }}"
           FILE_PATH="${{ matrix.context.file }}"
           DIR=$(dirname "$FILE_PATH")
-          echo "Processing: Team=$TEAM, Environment=$ENV, File=$FILE_PATH"
+          echo "Processing: Org=$ORG, Team=$TEAM, Environment=$ENV, File=$FILE_PATH"
+          echo "org=$ORG" >> $GITHUB_OUTPUT
           echo "team=$TEAM" >> $GITHUB_OUTPUT
           echo "env=$ENV" >> $GITHUB_OUTPUT
           echo "file=$FILE_PATH" >> $GITHUB_OUTPUT
