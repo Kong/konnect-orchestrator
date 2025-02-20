@@ -215,7 +215,12 @@ func Push(dir string, gitConfig manifest.GitConfig) error {
 	return nil
 }
 
-func CheckoutBranch(dir string, branch string) error {
+func CheckoutBranch(dir string, branch string, gitConfig manifest.GitConfig) error {
+	auth, err := getAuthMethod(gitConfig)
+	if err != nil {
+		return err
+	}
+
 	r, err := git.PlainOpen(dir)
 	if err != nil {
 		return err
@@ -228,6 +233,7 @@ func CheckoutBranch(dir string, branch string) error {
 
 	// Try to fetch the remote branch first
 	err = r.Fetch(&git.FetchOptions{
+		Auth: auth,
 		RefSpecs: []config.RefSpec{
 			config.RefSpec(fmt.Sprintf("+refs/heads/%s:refs/remotes/origin/%s", branch, branch)),
 		},

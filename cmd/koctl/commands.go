@@ -22,6 +22,7 @@ import (
 	kkInternal "github.com/Kong/sdk-konnect-go-internal"
 	kkInternalComps "github.com/Kong/sdk-konnect-go-internal/models/components"
 	kkComps "github.com/Kong/sdk-konnect-go/models/components"
+	giturl "github.com/kubescape/go-git-url"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -202,16 +203,18 @@ func processOrganization(
 		}),
 	)
 
-	fmt.Printf("Applying organization authorization settings to organization %s\n", orgName)
-	err = auth.ApplyAuthSettings(
-		context.Background(),
-		sdk.AuthSettings,
-		sdk.AuthSettings,
-		sdk.Teams,
-		sdk.AuthSettings,
-		*orgConfig.Authorization)
-	if err != nil {
-		return fmt.Errorf("failed to apply auth settings for organization %s: %w", orgName, err)
+	if orgConfig.Authorization != nil {
+		fmt.Printf("Applying organization authorization settings to organization %s\n", orgName)
+		err = auth.ApplyAuthSettings(
+			context.Background(),
+			sdk.AuthSettings,
+			sdk.AuthSettings,
+			sdk.Teams,
+			sdk.AuthSettings,
+			*orgConfig.Authorization)
+		if err != nil {
+			return fmt.Errorf("failed to apply auth settings for organization %s: %w", orgName, err)
+		}
 	}
 
 	// Process each environment in the organization
@@ -276,7 +279,7 @@ func processEnvironment(
 
 		// create / checkout branch
 		branchName := fmt.Sprintf("%s-konnect-orchestrator-apply", envName)
-		err = git.CheckoutBranch(platformRepoDir, branchName)
+		err = git.CheckoutBranch(platformRepoDir, branchName, platformGit)
 		if err != nil {
 			return fmt.Errorf("failed to checkout branch: %w", err)
 		}
@@ -335,10 +338,15 @@ func processEnvironment(
 				return fmt.Errorf("failed to push changes: %w", err)
 			}
 
-			_, err := github.CreateOrUpdatePullRequest(
+			gitURL, err := giturl.NewGitURL(*platformGit.Remote)
+			if err != nil {
+				return fmt.Errorf("failed to parse Git URL: %w", err)
+			}
+
+			_, err = github.CreateOrUpdatePullRequest(
 				context.Background(),
-				"KongAirlines",
-				"platform",
+				gitURL.GetOwnerName(),
+				gitURL.GetRepoName(),
 				branchName,
 				fmt.Sprintf("[Konnect] [%s] Konnect Orchestrator applied changes", envName),
 				fmt.Sprintf("For the %s environment, Konnect Orchestrator has detected changes in upstream service repositories and has generated the associated changes.", envName),
