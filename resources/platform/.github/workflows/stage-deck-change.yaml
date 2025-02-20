@@ -43,6 +43,7 @@ jobs:
 
           for FILE in $CHANGED_FILES; do
             echo "Processing file: $FILE"
+            ORG=$(echo "$FILE" | grep -oP 'konnect/[^/]+' | cut -d '/' -f2)
             TEAM=$(echo "$FILE" | grep -oP 'teams/[^/]+' | cut -d '/' -f2)
             ENV=$(echo "$FILE" | grep -oP 'envs/[^/]+' | cut -d '/' -f2)
             SERVICE_NAME=$(echo "$FILE" | grep -oP 'services/[^/]+' | cut -d '/' -f2)
@@ -67,7 +68,7 @@ jobs:
                       if ! git diff --quiet "$OUTPUT_FILE"; then
                         echo "File modified: $OUTPUT_FILE"
                         MODIFIED_FILES+=("$OUTPUT_FILE")
-                        OUTPUT_MATRIX+=("{\"team\":\"$TEAM\",\"env\":\"$ENV\",\"service\":\"$SERVICE_NAME\",\"file\":\"$OUTPUT_FILE\"}")
+                        OUTPUT_MATRIX+=("{\"org\":\"$ORG\",\"team\":\"$TEAM\",\"env\":\"$ENV\",\"service\":\"$SERVICE_NAME\",\"file\":\"$OUTPUT_FILE\"}")
                       else
                         echo "No changes detected in tracked file: $OUTPUT_FILE"
                         # No action needed if you only care about changed or newly created files
@@ -76,7 +77,7 @@ jobs:
                       # The file is not tracked, so it's newly created
                       echo "File created: $OUTPUT_FILE"
                       MODIFIED_FILES+=("$OUTPUT_FILE")
-                      OUTPUT_MATRIX+=("{\"team\":\"$TEAM\",\"env\":\"$ENV\",\"service\":\"$SERVICE_NAME\",\"file\":\"$OUTPUT_FILE\"}")
+                      OUTPUT_MATRIX+=("{\"org\":\"$ORG\",\"team\":\"$TEAM\",\"env\":\"$ENV\",\"service\":\"$SERVICE_NAME\",\"file\":\"$OUTPUT_FILE\"}")
                     fi
                   else
                     echo "Failed to create merged file: $OUTPUT_FILE"
@@ -146,6 +147,7 @@ jobs:
       - name: Extract context from matrix
         id: extract-context
         run: |
+          ORG="${{ matrix.context.org }}"
           TEAM="${{ matrix.context.team }}"
           ENV="${{ matrix.context.env }}"
           FILE_PATH="${{ matrix.context.file }}"
@@ -165,8 +167,9 @@ jobs:
       - name: Run deck diff
         id: deck-diff
         env:
-          KONNECT_PAT: ${{ secrets.KONNECT_PAT }}
+          KONNECT_TOKEN: ${{ secrets[format('{0}_KONNECT_TOKEN', matrix.context.org)] }}
         run: |
+          ORG="${{ matrix.context.org }}"
           TEAM="${{ steps.extract-context.outputs.team }}"
           ENV="${{ steps.extract-context.outputs.env }}"
           FILE_PATH="${{ steps.extract-context.outputs.file }}"
@@ -180,7 +183,10 @@ jobs:
           
           # Temporarily allow failures
           set +e
-          deck gateway diff --konnect-control-plane-name "$CONTROL_PLANE_NAME" --konnect-token "$KONNECT_PAT" "$FILE_PATH" >> $GITHUB_ENV
+          deck gateway diff \
+            --konnect-control-plane-name "$CONTROL_PLANE_NAME" \
+            --konnect-token "$KONNECT_TOKEN" \
+            "$FILE_PATH" >> $GITHUB_ENV
           STATUS=$?
           set -e
           
