@@ -4,7 +4,7 @@ go 1.23.5
 
 require (
 	github.com/Kong/sdk-konnect-go v0.2.0
-	github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250210230617-23b6485e23fa
+	github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250221174722-8c540a2d0b06
 	github.com/go-git/go-git/v5 v5.13.0
 	github.com/google/go-github/v60 v60.0.0
 	github.com/kubescape/go-git-url v0.0.30

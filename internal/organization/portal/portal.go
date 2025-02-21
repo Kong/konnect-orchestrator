@@ -97,7 +97,7 @@ func ApplyPortalConfig(
 			DefaultAPIVisibility:             components.DefaultAPIVisibility(visibility).ToPointer(),
 			DefaultPageVisibility:            components.DefaultPageVisibility(visibility).ToPointer(),
 			DefaultApplicationAuthStrategyID: nil,
-			Labels:                           labels,
+			Labels:                           toPortalLabels(labels),
 		})
 		if err != nil {
 			return "", err
@@ -111,7 +111,7 @@ func ApplyPortalConfig(
 			DefaultAPIVisibility:             components.UpdatePortalV3DefaultAPIVisibility(visibility).ToPointer(),
 			DefaultPageVisibility:            components.UpdatePortalV3DefaultPageVisibility(visibility).ToPointer(),
 			DefaultApplicationAuthStrategyID: nil,
-			Labels:                           labels,
+			Labels:                           toPortalLabels(labels),
 		})
 		if err != nil {
 			return "", err
@@ -189,7 +189,7 @@ func ApplyApiConfig(ctx context.Context,
 				Name:        kk.String(apiName),
 				Version:     kk.String(version),
 				Description: kk.String(*serviceConfig.Description),
-				Labels:      labels,
+				Labels:      toPortalLabels(labels),
 			})
 		if err != nil {
 			return err
@@ -208,7 +208,7 @@ func ApplyApiConfig(ctx context.Context,
 	if len(listSpecResponse.ListAPISpecResponse.Data) < 1 {
 		_, err = apiSpecsConfigService.CreateAPISpec(ctx, api.ID, components.CreateAPISpecRequest{
 			Content: string(rawSpec),
-			Type:    components.CreateAPISpecRequestTypeOas3.ToPointer(),
+			Type:    components.APISpecTypeOas3.ToPointer(),
 		})
 		if err != nil {
 			return err
@@ -241,4 +241,12 @@ func ApplyApiConfig(ctx context.Context,
 	// **************************************************************************
 
 	return nil
+}
+
+func toPortalLabels(labels map[string]string) map[string]*string {
+	o := map[string]*string{}
+	for k, v := range labels {
+		o[k] = kk.String(v)
+	}
+	return o
 }
