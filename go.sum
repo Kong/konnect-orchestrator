@@ -4,6 +4,8 @@ github.com/Kong/sdk-konnect-go v0.2.0 h1:ZgPwDtl3jBm17RjzPim7oP1iyW487XYOiWn0v8e
 github.com/Kong/sdk-konnect-go v0.2.0/go.mod h1:xsmTIkBbmVyUh1nRFjQMOhxYIPDl+sMfmRmPuZHtwLE=
 github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250210230617-23b6485e23fa h1:NswhUNhE8BGwumSUIOt/DqhzYRf/mqvtUBTQxR7YjPU=
 github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250210230617-23b6485e23fa/go.mod h1:lx8mucNVez6RLpIupy+vvGontwB4nKSB+r9d5CX2E00=
+github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250221174722-8c540a2d0b06 h1:wC1XTF57h8LJc+Jp5v0Re6Rqvy/UIfNBJ8f8kYjnulE=
+github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250221174722-8c540a2d0b06/go.mod h1:lx8mucNVez6RLpIupy+vvGontwB4nKSB+r9d5CX2E00=
 github.com/Microsoft/go-winio v0.5.2/go.mod h1:WpS1mjBmmwHBEWmogvA2mj8546UReBk4v8QkMxJ6pZY=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
