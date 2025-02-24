@@ -56,6 +56,16 @@ type ApiPublicationConfigService interface {
 		opts ...operations.Option) (*operations.PublishAPIToPortalResponse, error)
 }
 
+type ApiImplementationConfigService interface {
+	CreateAPIImplementation(ctx context.Context,
+		apiID string,
+		apiImplementation components.APIImplementation,
+		opts ...operations.Option) (*operations.CreateAPIImplementationResponse, error)
+	ListAPIImplementations(ctx context.Context,
+		request operations.ListAPIImplementationsRequest,
+		opts ...operations.Option) (*operations.ListAPIImplementationsResponse, error)
+}
+
 // If you change the name of a portal, a new one will be created an the old one remains
 func ApplyPortalConfig(
 	ctx context.Context,
@@ -125,16 +135,19 @@ func ApplyApiConfig(ctx context.Context,
 	apisConfigService ApisConfigService,
 	apiSpecsConfigService ApiSpecsConfigService,
 	apiPubConfigService ApiPublicationConfigService,
+	apiImplementationConfigService ApiImplementationConfigService,
 	apiName string,
 	serviceConfig manifest.Service,
 	rawSpec []byte,
 	portalId string,
-	labels map[string]string) error {
+	cpId string,
+	gwSvcId string,
+	labels map[string]string) (string, error) {
 
 	var spec map[string]interface{}
 	err := yaml.Unmarshal(rawSpec, &spec)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Extract the version
@@ -163,7 +176,7 @@ func ApplyApiConfig(ctx context.Context,
 			},
 		})
 	if err != nil {
-		return err
+		return "", err
 	}
 	// **************************************************************************
 
@@ -178,7 +191,7 @@ func ApplyApiConfig(ctx context.Context,
 				Labels:      labels,
 			})
 		if err != nil {
-			return err
+			return "", err
 		}
 		api = createResponse.APIResponseSchema
 	} else {
@@ -192,7 +205,7 @@ func ApplyApiConfig(ctx context.Context,
 				Labels:      labels,
 			})
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 	// **************************************************************************
@@ -203,7 +216,7 @@ func ApplyApiConfig(ctx context.Context,
 		APIID: api.ID,
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 	if len(listSpecResponse.ListAPISpecResponse.Data) < 1 {
 		_, err = apiSpecsConfigService.CreateAPISpec(ctx, api.ID, components.CreateAPISpecRequest{
@@ -211,7 +224,7 @@ func ApplyApiConfig(ctx context.Context,
 			Type:    components.CreateAPISpecRequestTypeOas3.ToPointer(),
 		})
 		if err != nil {
-			return err
+			return "", err
 		}
 	} else {
 		_, err = apiSpecsConfigService.UpdateAPISpec(ctx, operations.UpdateAPISpecRequest{
@@ -223,7 +236,7 @@ func ApplyApiConfig(ctx context.Context,
 			},
 		})
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 	// **************************************************************************
@@ -236,9 +249,50 @@ func ApplyApiConfig(ctx context.Context,
 			PortalID: portalId,
 		})
 	if err != nil {
-		return err
+		return "", err
 	}
 	// **************************************************************************
 
-	return nil
+	if gwSvcId == "" {
+		return api.ID, nil
+	}
+
+	// **************************************************************************
+	// Create an API Implementation
+	apiImpls, err := apiImplementationConfigService.ListAPIImplementations(ctx, operations.ListAPIImplementationsRequest{
+		Filter: &components.APIImplementationFilterParameters{
+			APIID: &components.UUIDFieldFilter{
+				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
+					Str: kk.String(api.ID),
+				},
+			},
+			ControlPlaneID: &components.UUIDFieldFilter{
+				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
+					Str: kk.String(cpId),
+				},
+			},
+			ServiceID: &components.UUIDFieldFilter{
+				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
+					Str: kk.String(gwSvcId),
+				},
+			},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if len(apiImpls.ListAPIImplementationsResponse.Data) < 1 {
+		_, err = apiImplementationConfigService.CreateAPIImplementation(ctx, api.ID, components.APIImplementation{
+			Service: components.APIImplementationService{
+				ControlPlaneID: cpId,
+				ID:             gwSvcId,
+			},
+		})
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return api.ID, nil
 }

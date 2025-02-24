@@ -48,9 +48,15 @@ jobs:
             echo "Processing: Org=$ORG, Team=$TEAM, Environment=$ENV, Service=$SERVICE_NAME, File=$FILE"
 
             if [[ -n "$TEAM" && -n "$ENV" && -n "$SERVICE_NAME" ]]; then
+              PATCH_FILE=$(dirname "$FILE")/ko-patch.yaml
               OUTPUT_FILE=$(dirname "$FILE")/kong-from-oas.yaml
 
-              deck file openapi2kong -s $FILE -o "$OUTPUT_FILE"
+              if [[ -f "$PATCH_FILE" ]]; then
+                deck file openapi2kong -s $FILE | \
+                  deck file patch "$PATCH_FILE" -o "$OUTPUT_FILE"
+              else
+                deck file openapi2kong -s $FILE -o "$OUTPUT_FILE"
+              fi
                 
               if [[ -f "$OUTPUT_FILE" ]]; then
                 # Check if the file is tracked in Git
