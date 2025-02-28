@@ -5,12 +5,14 @@ go 1.23.5
 require (
 	github.com/Kong/sdk-konnect-go v0.2.0
 	github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250221174722-8c540a2d0b06
+	github.com/ericlagergren/decimal v0.0.0-20240411145413-00de7ca16731
 	github.com/go-git/go-git/v5 v5.13.0
 	github.com/google/go-github/v60 v60.0.0
 	github.com/kubescape/go-git-url v0.0.30
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
+	github.com/yassinebenaid/godump v0.11.1
 	golang.org/x/oauth2 v0.18.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -24,7 +26,6 @@ require (
 	github.com/cyphar/filepath-securejoin v0.2.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/ericlagergren/decimal v0.0.0-20240411145413-00de7ca16731 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.0 // indirect
