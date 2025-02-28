@@ -1,0 +1,85 @@
+name: Konnect - decK sync manual
+
+on:
+  workflow_dispatch:
+
+jobs:
+  collect-files:
+    name: Collect Kong Configs
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.collect-context.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Collect kong.yaml files
+        id: collect-context
+        run: |
+          FILES=$(find ./konnect -type f -name 'kong.yaml')
+          echo "Found kong.yaml files: $FILES"
+
+          OUTPUT_MATRIX=()
+          
+          for FILE in $FILES; do
+            ORG=$(echo "$FILE" | grep -oP 'konnect/[^/]+' | cut -d '/' -f2)
+            TEAM=$(echo "$FILE" | grep -oP 'teams/[^/]+' | cut -d '/' -f2)
+            ENV=$(echo "$FILE" | grep -oP 'envs/[^/]+' | cut -d '/' -f2)
+
+            if [[ -n "$TEAM" && -n "$ENV" ]]; then
+              OUTPUT_MATRIX+=("{\"org\":\"$ORG\",\"team\":\"$TEAM\",\"env\":\"$ENV\",\"file\":\"$FILE\"}")
+            else
+              echo "Skipping file (no team/env found): $FILE"
+            fi
+          done
+
+          MATRIX=$(printf '[%s]' "$(printf '%s,' "${OUTPUT_MATRIX[@]}" | sed 's/,$//')")
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  sync-changes:
+    name: Sync Gateway Configs
+    needs: [collect-files]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        context: ${{ fromJson(needs.collect-files.outputs.matrix) }}
+      max-parallel: 1
+      fail-fast: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Extract context
+        id: extract-context
+        run: |
+          ORG="${{ matrix.context.org }}"
+          TEAM="${{ matrix.context.team }}"
+          ENV="${{ matrix.context.env }}"
+          FILE_PATH="${{ matrix.context.file }}"
+          echo "ORG=$ORG" >> $GITHUB_OUTPUT
+          echo "TEAM=$TEAM" >> $GITHUB_OUTPUT
+          echo "ENV=$ENV" >> $GITHUB_OUTPUT
+          echo "FILE_PATH=$FILE_PATH" >> $GITHUB_OUTPUT
+
+      - name: Setup deck
+        uses: kong/setup-deck@v1
+        with:
+          deck-version: '1.44.1'
+          wrapper: false
+
+      - name: Run deck sync
+        env:
+          KONNECT_TOKEN: ${{ secrets[format('{0}_KONNECT_TOKEN', matrix.context.org)] }}
+        run: |
+          TEAM="${{ steps.extract-context.outputs.TEAM }}"
+          ENV="${{ steps.extract-context.outputs.ENV }}"
+          FILE_PATH="${{ steps.extract-context.outputs.FILE_PATH }}"
+          CONTROL_PLANE_NAME="${TEAM}-${ENV}"
+
+          echo "Syncing config for Control Plane: $CONTROL_PLANE_NAME"
+          echo "Using file: $FILE_PATH"
+
+          deck gateway sync \
+            --konnect-control-plane-name "$CONTROL_PLANE_NAME" \
+            --konnect-token "$KONNECT_TOKEN" \
+            "$FILE_PATH"
