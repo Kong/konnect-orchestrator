@@ -201,7 +201,7 @@ jobs:
       - name: Create PR for changes
         uses: peter-evans/create-pull-request@v5
         with:
-          title: "[Konnect] [${{ steps.extract-context.outputs.env}}] - Staged decK Changes"
+          title: "[Konnect] [${{ steps.extract-context.outputs.env }}] - ${{ steps.extract-context.outputs.team }} Staged decK Changes"
           branch: "stage-deck-change/${{ steps.extract-context.outputs.DIR }}"
           labels: "${{ steps.extract-context.outputs.team }},${{ steps.extract-context.outputs.env }},kong,konnect"
           commit-message: "Updated decK Configurations for ${{ steps.extract-context.outputs.DIR }}"
