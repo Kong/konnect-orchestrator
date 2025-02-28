@@ -212,6 +212,9 @@ func applyService(
 	var serviceId string
 	if len(services) == 1 {
 		serviceId = *services[0].GetID()
+	} else {
+		fmt.Printf("!!!Found %d serivces for API %s. Cannot create API implementation relation, requires exactly 1 service with `ko-api-name` tag.\n", len(services), *apiName)
+		return nil
 	}
 
 	_, err = portal.ApplyApiConfig(
