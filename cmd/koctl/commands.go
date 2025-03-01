@@ -104,6 +104,7 @@ func readConfigSection(filePath string, out interface{}) error {
 
 func applyService(
 	platformRepoDir string,
+	platformGit manifest.GitConfig,
 	orgName string,
 	envName string,
 	envType string,
@@ -120,12 +121,18 @@ func applyService(
 	labels["team-name"] = teamName
 	labels["service-name"] = *serviceConfig.Name
 
+	svcGitCfg := serviceConfig.Git
+	if svcGitCfg.Auth == nil {
+		// If the user doesn't provide a service level git auth config, we use the platform level git auth
+		svcGitCfg.Auth = platformGit.Auth
+	}
+
 	// This loads the Service Spec from the teams Git Repository
 	// into memory
 	serviceSpec, err := git.GetRemoteFile(
-		*serviceConfig.Git,
-		*serviceEnvConfig.Branch,
-		*serviceConfig.SpecPath)
+		*svcGitCfg,
+		serviceEnvConfig.Branch,
+		serviceConfig.SpecPath)
 	if err != nil {
 		return fmt.Errorf("failed to get service spec for %s: %w",
 			serviceName, err)
@@ -271,12 +278,12 @@ func applyTeam(teamName string,
 	envConfig manifest.Environment,
 	envName string,
 	orgName string,
-	teams map[string]*manifest.Team,
+	teamConfig manifest.Team,
 	sdk *kk.SDK,
 	platformGit manifest.GitConfig,
 	teamEnvironmentConfig *manifest.TeamEnvironment,
 	portalId string,
-	labels map[string]string) (bool, error) {
+	labels map[string]string) error {
 
 	fmt.Printf("-Processing team %s\n", teamName)
 
@@ -295,15 +302,8 @@ func applyTeam(teamName string,
 		teamName)
 
 	if err != nil || cpID == "" {
-		return true, fmt.Errorf("failed to apply control plane for team %s in organization %s environment %s: %w",
+		return fmt.Errorf("failed to apply control plane for team %s in organization %s environment %s: %w",
 			teamName, orgName, envName, err)
-	}
-
-	// Get the team configuration from the global teams map
-	teamConfig, exists := teams[teamName]
-	if !exists {
-		return true, fmt.Errorf("team %s referenced in organization %s environment %s not found in teams configuration",
-			teamName, orgName, envName)
 	}
 
 	// Create/update the team
@@ -314,10 +314,10 @@ func applyTeam(teamName string,
 		sdk.Users,
 		sdk.Invites,
 		teamName,
-		*teamConfig,
+		teamConfig,
 	)
 	if err != nil || teamID == "" {
-		return true, fmt.Errorf("failed to apply team %s in organization %s environment %s: %w",
+		return fmt.Errorf("failed to apply team %s in organization %s environment %s: %w",
 			teamName, orgName, envName, err)
 	}
 
@@ -328,54 +328,87 @@ func applyTeam(teamName string,
 		teamID,
 		cpID,
 		envConfig); err != nil {
-		return true, fmt.Errorf("failed to apply team roles: %w", err)
+		return fmt.Errorf("failed to apply team roles: %w", err)
 	}
 
 	platformRepoDir, err := git.Clone(platformGit)
 	if err != nil {
-		return true, fmt.Errorf("failed to clone platform repository: %w", err)
+		return fmt.Errorf("failed to clone platform repository: %w", err)
 	}
 
 	// create / checkout branch
 	branchName := fmt.Sprintf("%s-konnect-orchestrator-apply", envName)
 	err = git.CheckoutBranch(platformRepoDir, branchName, platformGit)
 	if err != nil {
-		return true, fmt.Errorf("failed to checkout branch: %w", err)
+		return fmt.Errorf("failed to checkout branch: %w", err)
 	}
 
-	// Create folder structure for team services in platform repo
-	for serviceName, serviceEnvConfig := range teamEnvironmentConfig.Services {
+	if teamEnvironmentConfig != nil {
+		for serviceName, serviceEnvConfig := range teamEnvironmentConfig.Services {
 
-		fmt.Printf("--Processing service %s\n", serviceName)
+			fmt.Printf("--Processing service %s\n", serviceName)
 
-		serviceConfig, exists := teamConfig.Services[serviceName]
-		if !exists {
-			return true, fmt.Errorf("service %s referenced in team %s in organization %s environment %s not found in team configuration",
-				serviceName, teamName, orgName, envName)
+			serviceConfig, exists := teamConfig.Services[serviceName]
+			if !exists {
+				return fmt.Errorf("service %s referenced in team %s in organization %s environment %s not found in team configuration",
+					serviceName, teamName, orgName, envName)
+			}
+
+			if err := applyService(
+				platformRepoDir,
+				platformGit,
+				orgName,
+				envName,
+				envConfig.Type,
+				teamName,
+				serviceName,
+				*serviceConfig,
+				*serviceEnvConfig,
+				portalId,
+				envConfig.Region,
+				accessToken,
+				cpID,
+				labels); err != nil {
+				return fmt.Errorf("failed to process service %s in team %s in organization %s environment %s: %w",
+					serviceName, teamName, orgName, envName, err)
+			}
 		}
+	} else {
+		for serviceName, serviceConfig := range teamConfig.Services {
 
-		if err := applyService(
-			platformRepoDir,
-			orgName,
-			envName,
-			envConfig.Type,
-			teamName,
-			serviceName,
-			*serviceConfig,
-			*serviceEnvConfig,
-			portalId,
-			envConfig.Region,
-			accessToken,
-			cpID,
-			labels); err != nil {
-			return true, fmt.Errorf("failed to process service %s in team %s in organization %s environment %s: %w",
-				serviceName, teamName, orgName, envName, err)
+			fmt.Printf("--Processing service %s\n", serviceName)
+
+			serviceEnvConfig := manifest.EnvironmentService{}
+			if envConfig.Type == "PROD" {
+				serviceEnvConfig.Branch = serviceConfig.ProdBranch
+			} else {
+				serviceEnvConfig.Branch = serviceConfig.DevBranch
+			}
+
+			if err := applyService(
+				platformRepoDir,
+				platformGit,
+				orgName,
+				envName,
+				envConfig.Type,
+				teamName,
+				serviceName,
+				*serviceConfig,
+				serviceEnvConfig,
+				portalId,
+				envConfig.Region,
+				accessToken,
+				cpID,
+				labels); err != nil {
+				return fmt.Errorf("failed to process service %s in team %s in organization %s environment %s: %w",
+					serviceName, teamName, orgName, envName, err)
+			}
 		}
 	}
 
 	isClean, err := git.IsClean(platformRepoDir)
 	if err != nil {
-		return true, fmt.Errorf("failed to check if platform repository is clean: %w", err)
+		return fmt.Errorf("failed to check if platform repository is clean: %w", err)
 	}
 
 	if !isClean {
@@ -384,22 +417,22 @@ func applyTeam(teamName string,
 
 		err = git.Add(platformRepoDir, ".")
 		if err != nil {
-			return true, fmt.Errorf("failed to add files to commit: %w", err)
+			return fmt.Errorf("failed to add files to commit: %w", err)
 		}
 		// commit changes
 		err = git.Commit(platformRepoDir, "Platform changes via Konnect Orchestrator", *platformGit.Author)
 		if err != nil {
-			return true, fmt.Errorf("failed to commit changes: %w", err)
+			return fmt.Errorf("failed to commit changes: %w", err)
 		}
 		// push changes
 		err = git.Push(platformRepoDir, platformGit)
 		if err != nil {
-			return true, fmt.Errorf("failed to push changes: %w", err)
+			return fmt.Errorf("failed to push changes: %w", err)
 		}
 
 		gitURL, err := giturl.NewGitURL(*platformGit.Remote)
 		if err != nil {
-			return true, fmt.Errorf("failed to parse Git URL: %w", err)
+			return fmt.Errorf("failed to parse Git URL: %w", err)
 		}
 
 		_, err = github.CreateOrUpdatePullRequest(
@@ -412,13 +445,15 @@ func applyTeam(teamName string,
 			*platformGit.GitHub,
 		)
 		if err != nil {
-			return true, fmt.Errorf("failed to create or update pull request: %w", err)
+			return fmt.Errorf("failed to create or update pull request: %w", err)
 		}
 	} else {
 		fmt.Printf("-No changes for team %s in environment %s\n", teamName, envName)
 	}
-	return false, nil
+
+	return nil
 }
+
 func applyEnvironment(
 	envName string,
 	orgName string,
@@ -447,14 +482,46 @@ func applyEnvironment(
 		return err
 	}
 
-	// Process teams within this environment
-	for teamName, teamEnvironmentConfig := range envConfig.Teams {
+	if envConfig.Teams == nil { // By default all teams are added to environments
+		for teamName, teamConfig := range teams {
+			err := applyTeam(
+				teamName,
+				accessToken,
+				envConfig,
+				envName,
+				orgName,
+				*teamConfig,
+				sdk,
+				platformGit,
+				nil, // nil because we use the default config in the teamConfig
+				portalId,
+				labels)
+			if err != nil {
+				return err
+			}
+		}
+	} else { // The user wants to specify individual teams for this environment
+		// Process teams within this environment
+		for teamName, teamEnvironmentConfig := range envConfig.Teams {
 
-		shouldReturn, err1 := applyTeam(teamName, accessToken, envConfig, envName, orgName, teams, sdk, platformGit, teamEnvironmentConfig, portalId, labels)
-		if shouldReturn {
-			return err1
+			err := applyTeam(
+				teamName,
+				accessToken,
+				envConfig,
+				envName,
+				orgName,
+				*teams[teamName],
+				sdk,
+				platformGit,
+				teamEnvironmentConfig,
+				portalId,
+				labels)
+			if err != nil {
+				return err
+			}
 		}
 	}
+
 	return nil
 }
 

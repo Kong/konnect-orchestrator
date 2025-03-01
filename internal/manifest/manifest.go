@@ -1,5 +1,9 @@
 package manifest
 
+import (
+	"encoding/json"
+)
+
 type Orchestrator struct {
 	Platform      *Platform                `json:"platform,omitempty" yaml:"platform,omitempty"`
 	Teams         map[string]*Team         `json:"teams,omitempty" yaml:"teams,omitempty"`
@@ -16,7 +20,40 @@ type Service struct {
 	Name        *string    `json:"name,omitempty" yaml:"name,omitempty"`
 	Git         *GitConfig `json:"git,omitempty" yaml:"git,omitempty"`
 	Description *string    `json:"description,omitempty" yaml:"description,omitempty"`
-	SpecPath    *string    `json:"spec-path,omitempty" yaml:"spec-path,omitempty"`
+	SpecPath    string     `json:"spec-path" yaml:"spec-path,omitempty"`
+	ProdBranch  string     `json:"prod-branch-name" yaml:"prod-branch-name"`
+	DevBranch   string     `json:"dev-branch-name" yaml:"dev-branch-name"`
+}
+
+type serviceAlias Service
+
+func newDefaultService() *serviceAlias {
+	return &serviceAlias{
+		Git:         nil,
+		Name:        nil,
+		Description: nil,
+		SpecPath:    "openapi.yaml",
+		ProdBranch:  "main",
+		DevBranch:   "dev",
+	}
+}
+
+func (s *Service) UnmarshalJSON(data []byte) error {
+	dflt := newDefaultService()
+	if err := json.Unmarshal(data, &dflt); err != nil {
+		return err
+	}
+	*s = Service(*dflt)
+	return nil
+}
+
+func (s *Service) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	dflt := newDefaultService()
+	if err := unmarshal(&dflt); err != nil {
+		return err
+	}
+	*s = Service(*dflt)
+	return nil
 }
 
 type Organization struct {
@@ -37,7 +74,7 @@ type TeamEnvironment struct {
 }
 
 type EnvironmentService struct {
-	Branch *string `json:"branch,omitempty" yaml:"branch,omitempty"`
+	Branch string `json:"branch" yaml:"branch"`
 }
 
 type Secret struct {
