@@ -102,3 +102,6 @@ YourOrg:
           services:
             your-org/example-service:
               branch: main # Branch for production resources.
+  notifications:
+    email: true
+    in-app: false

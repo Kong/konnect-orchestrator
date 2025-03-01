@@ -60,6 +60,12 @@ type Organization struct {
 	AccessToken   Secret                  `json:"access-token" yaml:"access-token"`
 	Environments  map[string]*Environment `json:"environments,omitempty" yaml:"environments,omitempty"`
 	Authorization *Authorization          `json:"authorization,omitempty" yaml:"authorization,omitempty"`
+	Notifications *Notifications          `json:"notifications,omitempty" yaml:"notifications,omitempty"`
+}
+
+type Notifications struct {
+	Email *bool `json:"email,omitempty" yaml:"email,omitempty"`
+	InApp *bool `json:"in-app,omitempty" yaml:"in-app,omitempty"`
 }
 
 type Environment struct {
