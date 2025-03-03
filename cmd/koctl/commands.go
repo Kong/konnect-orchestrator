@@ -19,6 +19,7 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/organization/portal"
 	"github.com/Kong/konnect-orchestrator/internal/organization/role"
 	"github.com/Kong/konnect-orchestrator/internal/organization/team"
+	"github.com/Kong/konnect-orchestrator/internal/reports"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
 	kkInternal "github.com/Kong/sdk-konnect-go-internal"
@@ -559,6 +560,8 @@ func applyOrganization(
 		}
 	}
 
+	regions := map[string]struct{}{}
+
 	// Process each environment in the organization
 	for envName, envConfig := range orgConfig.Environments {
 		err := applyEnvironment(
@@ -567,6 +570,26 @@ func applyOrganization(
 			*envConfig, teams, platformGit, sdk)
 		if err != nil {
 			return err
+		}
+		regions[envConfig.Region] = struct{}{}
+	}
+
+	// Default is true, so create if it's missing or truthy
+	if orgConfig.EnableCustomReports == nil || *orgConfig.EnableCustomReports {
+		for region := range regions {
+			internalRegionSdk := reports.New(
+				reports.WithSecurity(kkInternalComps.Security{
+					PersonalAccessToken: kk.String(accessToken),
+				}),
+				reports.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
+			)
+			fmt.Printf("Creating default custom reports for organization %s in region %s\n", orgName, region)
+			err = reports.ApplyReports(
+				context.Background(),
+				internalRegionSdk.CustomReports)
+			if err != nil {
+				return fmt.Errorf("failed to create custom reports for organization %s: %w", orgName, err)
+			}
 		}
 	}
 
