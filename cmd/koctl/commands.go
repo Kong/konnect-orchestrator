@@ -20,7 +20,6 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/organization/role"
 	"github.com/Kong/konnect-orchestrator/internal/organization/team"
 	"github.com/Kong/konnect-orchestrator/internal/reports"
-	kkReports "github.com/Kong/konnect-orchestrator/internal/reports"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
 	kkInternal "github.com/Kong/sdk-konnect-go-internal"
@@ -578,11 +577,11 @@ func applyOrganization(
 	// Default is true, so create if it's missing or truthy
 	if orgConfig.EnableCustomReports == nil || *orgConfig.EnableCustomReports {
 		for region := range regions {
-			internalRegionSdk := kkReports.New(
-				kkReports.WithSecurity(kkInternalComps.Security{
+			internalRegionSdk := reports.New(
+				reports.WithSecurity(kkInternalComps.Security{
 					PersonalAccessToken: kk.String(accessToken),
 				}),
-				kkReports.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
+				reports.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
 			)
 			fmt.Printf("Creating default custom reports for organization %s in region %s\n", orgName, region)
 			err = reports.ApplyReports(

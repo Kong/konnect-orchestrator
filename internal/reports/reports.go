@@ -11,7 +11,6 @@ import (
 type CustomReportsService interface {
 	GetReports(ctx context.Context, pageSize *int64, pageNumber *int64, opts ...operations.Option) (*operations.GetReportsResponse, error)
 	CreateReport(ctx context.Context, request *components.ReportInput, opts ...operations.Option) (*operations.CreateReportResponse, error)
-	UpdateReport(ctx context.Context, reportID string, report *components.ReportInput, opts ...operations.Option) (*operations.UpdateReportResponse, error)
 }
 
 // If you change the name of a report, a new one will be created and the old one remains
@@ -36,7 +35,7 @@ func ApplyReports(
 	return nil
 }
 
-func reportExists(reportName *string, reports []components.Report) bool {
+func reportExists(reportName *string, reports []components.ReportCollectionReport) bool {
 	for _, report := range reports {
 		if *report.Name == *reportName {
 			return true
