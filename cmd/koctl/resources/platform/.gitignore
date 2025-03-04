@@ -2,3 +2,5 @@
 deck-*/
 # Temporary folder used by CICD
 download_dir/
+
+.DS_Store

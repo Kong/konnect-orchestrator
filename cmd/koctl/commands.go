@@ -631,7 +631,6 @@ func copyFile(embedFS embed.FS, srcPath, dstPath string) error {
 		return fmt.Errorf("failed to copy data to %s: %w", dstPath, err)
 	}
 
-	fmt.Println("Copied:", dstPath)
 	return nil
 }
 
