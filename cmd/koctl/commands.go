@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +33,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+//go:embed resources/platform/* resources/platform/.github/* resources/platform/.gitignore
+var resourceFiles embed.FS
 var loopInterval int
 var platformFileArg string
 var teamsFileArg string
@@ -42,15 +46,6 @@ var rootCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	},
-}
-
-var initCmd = &cobra.Command{
-	Use:   "init [directory]",
-	Short: "Initialize a Platform team repository",
-	Long: `Initialize a Platform team GitHub repository to utilize the Konnect Orchestrator for Konnect resource management. A konnect directory will be created in the specified directory with the default folder structure
-and template files required for Konnect orchestration.`,
-	Args: cobra.ExactArgs(1),
-	RunE: runInit,
 }
 
 var applyCmd = &cobra.Command{
@@ -75,8 +70,6 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.AddCommand(applyCmd)
-	rootCmd.AddCommand(initCmd)
-
 }
 
 func readConfigSection(filePath string, out interface{}) error {
@@ -612,6 +605,126 @@ func applyOrganization(
 	return nil
 }
 
+// copyFile copies a single file from the embedded FS to the local filesystem
+func copyFile(embedFS embed.FS, srcPath, dstPath string) error {
+	// Open the embedded file
+	srcFile, err := embedFS.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("failed to open embedded file %s: %w", srcPath, err)
+	}
+	defer srcFile.Close()
+
+	// Ensure the destination directory exists
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory %s: %w", filepath.Dir(dstPath), err)
+	}
+
+	// Create the destination file
+	dstFile, err := os.Create(dstPath)
+	if err != nil {
+		return fmt.Errorf("failed to create file %s: %w", dstPath, err)
+	}
+	defer dstFile.Close()
+
+	// Copy file contents
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		return fmt.Errorf("failed to copy data to %s: %w", dstPath, err)
+	}
+
+	return nil
+}
+
+// copyEmbeddedFilesRecursive recursively copies files from an embedded FS to the target directory
+func copyEmbeddedFilesRecursive(embedFS embed.FS, srcDir, dstDir string) error {
+	entries, err := embedFS.ReadDir(srcDir)
+	if err != nil {
+		return fmt.Errorf("failed to read directory %s: %w", srcDir, err)
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(srcDir, entry.Name())
+		dstPath := filepath.Join(dstDir, entry.Name())
+
+		if entry.IsDir() {
+			// Ensure the destination directory exists
+			if err := os.MkdirAll(dstPath, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
+			}
+			// Recurse into subdirectory
+			if err := copyEmbeddedFilesRecursive(embedFS, srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			// Copy individual file
+			if err := copyFile(embedFS, srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func applyPlatformRepo(gitCfg *manifest.GitConfig) error {
+
+	// Apply changes to the Platform repository, these include Workflow files, configurations, etc...
+	platformRepoDir, err := git.Clone(*gitCfg)
+	if err != nil {
+		return fmt.Errorf("failed to clone platform repository: %w", err)
+	}
+
+	// create a branch with a well known name
+	branchName := "platform-konnect-orchestrator-apply"
+	err = git.CheckoutBranch(platformRepoDir, branchName, *gitCfg)
+	if err != nil {
+		return fmt.Errorf("failed to checkout branch: %w", err)
+	}
+
+	err = copyEmbeddedFilesRecursive(resourceFiles, "resources/platform", platformRepoDir)
+	if err != nil {
+		return fmt.Errorf("failed to copy resource files to platform repository: %w", err)
+	}
+
+	// Detect changes to the repository
+	isClean, err := git.IsClean(platformRepoDir)
+	if err != nil {
+		return fmt.Errorf("failed to check if platform repository is clean: %w", err)
+	}
+	if !isClean {
+		fmt.Println("Changes detected in platform repository")
+		err = git.Add(platformRepoDir, ".")
+		if err != nil {
+			return fmt.Errorf("failed to add files to commit: %w", err)
+		}
+		err = git.Commit(platformRepoDir, "Platform changes via Konnect Orchestrator", *gitCfg.Author)
+		if err != nil {
+			return fmt.Errorf("failed to commit changes: %w", err)
+		}
+		err = git.Push(platformRepoDir, *gitCfg)
+		if err != nil {
+			return fmt.Errorf("failed to push changes: %w", err)
+		}
+
+		gitURL, err := giturl.NewGitURL(*gitCfg.Remote)
+		if err != nil {
+			return fmt.Errorf("failed to parse Git URL: %w", err)
+		}
+
+		_, err = github.CreateOrUpdatePullRequest(
+			context.Background(),
+			gitURL.GetOwnerName(),
+			gitURL.GetRepoName(),
+			branchName,
+			"[Konnect] Konnect Orchestrator applied changes - Platform",
+			"Makes changes for the Platform repository automations, including GitHub Actions and configurations.",
+			*gitCfg.GitHub)
+		if err != nil {
+			return fmt.Errorf("failed to create or update pull request: %w", err)
+		}
+	}
+
+	return nil
+}
+
 func runApply(cmd *cobra.Command, args []string) error {
 	applyOnce := func() error {
 		platformFilePath, err := filepath.Abs(platformFileArg)
@@ -645,6 +758,11 @@ func runApply(cmd *cobra.Command, args []string) error {
 		}
 		if err := readConfigSection(organizationsFilePath, &manifest.Organizations); err != nil {
 			return fmt.Errorf("failed to read organizations configuration: %w", err)
+		}
+
+		err = applyPlatformRepo(manifest.Platform.Git)
+		if err != nil {
+			return fmt.Errorf("failed to apply platform repository changes: %w", err)
 		}
 
 		// Process each organization
@@ -761,49 +879,6 @@ func mergeGitignore(srcPath, dstPath string) error {
 		}
 	}
 
-	return nil
-}
-
-func runInit(cmd *cobra.Command, args []string) error {
-	targetDir := args[0]
-
-	// Copy the entire konnect directory structure
-	srcKonnectDir := filepath.Join("resources", "platform", "konnect")
-	dstKonnectDir := filepath.Join(targetDir, "konnect")
-	if err := copyDir(srcKonnectDir, dstKonnectDir); err != nil {
-		return fmt.Errorf("failed to copy konnect directory: %w", err)
-	}
-
-	// Handle .gitignore specially - merge with existing if present
-	srcGitignore := filepath.Join("resources", "platform", ".gitignore")
-	dstGitignore := filepath.Join(targetDir, ".gitignore")
-	if err := mergeGitignore(srcGitignore, dstGitignore); err != nil {
-		return fmt.Errorf("failed to handle .gitignore: %w", err)
-	}
-
-	// Copy .github directory to the base target directory
-	srcGithubDir := filepath.Join("resources", "platform", ".github")
-	dstGithubDir := filepath.Join(targetDir, ".github")
-	if err := copyDir(srcGithubDir, dstGithubDir); err != nil {
-		return fmt.Errorf("failed to copy .github directory: %w", err)
-	}
-
-	fmt.Printf("Successfully initialized Konnect configuration in: %s\n", dstKonnectDir)
-	fmt.Printf("GitHub workflows have been added to: %s\n", dstGithubDir)
-	fmt.Printf("Updated .gitignore at: %s\n", dstGitignore)
-	fmt.Println("\nNext steps:")
-	fmt.Println("1. Review and customize the konnect.yaml file in the konnect directory")
-	fmt.Println("\t- Configure your team's platform repository in the platform key")
-	fmt.Println("\t- Add and configure your organization's teams and their services teams configuration")
-	fmt.Println("\t- Define your desired Konnect organizational layout in the organizations key")
-	fmt.Println("\t- Commit and push your changes to your platform repository")
-	fmt.Println("2. In each of your Konnect organizations, add a System Account named `konnect-orchestrator`")
-	fmt.Println("\t- Assign the `konnect-orchestrator` account the `Organization Admin` role")
-	fmt.Println("\t- Create a new system token for the `konnect-orchestrator` account and store where available to the orchestrator")
-	fmt.Println("3. Configure your Platform GitHub repository with the necessary authorizations for workflows")
-	fmt.Println("\t- For each Konnect organization, add a `<ORG_NAME>_KONNECT_TOKEN` secret to the repository in the GitHub secrets")
-	fmt.Println("\t- Give Actions read and write permissions in the repository for all scopes. GH Settings")
-	fmt.Println("4. Run 'koctl apply <dir>/konnect/konnect.yaml' to apply your configuration")
 	return nil
 }
 
