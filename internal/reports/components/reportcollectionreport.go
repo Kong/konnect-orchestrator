@@ -8,7 +8,6 @@ import (
 
 type ReportCollectionReport struct {
 	Name *string `json:"name,omitempty"`
-
 }
 
 func (r ReportCollectionReport) MarshalJSON() ([]byte, error) {

@@ -28,7 +28,11 @@ func newCustomReports(sdkConfig sdkConfiguration) *CustomReports {
 
 // GetReports - List Custom Reports
 // Returns a list of custom reports.
-func (s *CustomReports) GetReports(ctx context.Context, pageSize *int64, pageNumber *int64, opts ...operationsReports.Option) (*operationsReports.GetReportsResponse, error) {
+func (s *CustomReports) GetReports(ctx context.Context,
+	pageSize *int64,
+	pageNumber *int64,
+	opts ...operationsReports.Option,
+) (*operationsReports.GetReportsResponse, error) {
 	request := operationsReports.GetReportsRequest{
 		PageSize:   pageSize,
 		PageNumber: pageNumber,
@@ -275,7 +279,6 @@ func (s *CustomReports) GetReports(ctx context.Context, pageSize *int64, pageNum
 	}
 
 	return res, nil
-
 }
 
 // CreateReport - New Custom Report
@@ -546,7 +549,6 @@ func (s *CustomReports) CreateReport(ctx context.Context, request *components.Re
 	}
 
 	return res, nil
-
 }
 
 // GetReport - Fetch Custom Report
@@ -835,7 +837,6 @@ func (s *CustomReports) GetReport(ctx context.Context, reportID string, opts ...
 	}
 
 	return res, nil
-
 }
 
 // UpdateReport - Update Report
@@ -1132,5 +1133,4 @@ func (s *CustomReports) UpdateReport(ctx context.Context, reportID string, repor
 	}
 
 	return res, nil
-
 }

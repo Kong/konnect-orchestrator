@@ -74,8 +74,8 @@ func ApplyAuthSettings(
 	authSvc AuthenticationSettingsService,
 	teamSvc TeamsService,
 	teamMappingSvc IdentityProviderTeamMappingService,
-	authSettings manifest.Authorization) error {
-
+	authSettings manifest.Authorization,
+) error {
 	oidcProviderID := ""
 	samlProviderID := ""
 
@@ -143,7 +143,6 @@ func ApplyAuthSettings(
 			_, err := idpSvc.UpdateIdentityProvider(ctx,
 				*samlQueryResponse.IdentityProviders[0].ID,
 				update)
-
 			if err != nil {
 				return fmt.Errorf("failed to update saml provider: %w", err)
 			}

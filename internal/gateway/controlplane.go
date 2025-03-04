@@ -12,9 +12,16 @@ import (
 
 // ControlPlaneService handles control plane operations
 type ControlPlaneService interface {
-	ListControlPlanes(ctx context.Context, request operations.ListControlPlanesRequest, opts ...operations.Option) (*operations.ListControlPlanesResponse, error)
-	CreateControlPlane(ctx context.Context, request components.CreateControlPlaneRequest, opts ...operations.Option) (*operations.CreateControlPlaneResponse, error)
-	UpdateControlPlane(ctx context.Context, id string, request components.UpdateControlPlaneRequest, opts ...operations.Option) (*operations.UpdateControlPlaneResponse, error)
+	ListControlPlanes(ctx context.Context,
+		request operations.ListControlPlanesRequest,
+		opts ...operations.Option) (*operations.ListControlPlanesResponse, error)
+	CreateControlPlane(ctx context.Context,
+		request components.CreateControlPlaneRequest,
+		opts ...operations.Option) (*operations.CreateControlPlaneResponse, error)
+	UpdateControlPlane(ctx context.Context,
+		id string,
+		request components.UpdateControlPlaneRequest,
+		opts ...operations.Option) (*operations.UpdateControlPlaneResponse, error)
 }
 
 // ApplyControlPlane ensures that a control plane exists for a team in a specific environment
@@ -23,8 +30,8 @@ func ApplyControlPlane(
 	cpSvc ControlPlaneService,
 	envName string,
 	env manifest.Environment,
-	teamName string) (string, error) {
-
+	teamName string,
+) (string, error) {
 	var cpName string
 	if env.Teams == nil || env.Teams[teamName].ControlPlaneName == nil {
 		// Control plane name follows convention: team-name-environment-name
@@ -55,31 +62,31 @@ func ApplyControlPlane(
 			return "", fmt.Errorf("failed to create control plane %s: %w", cpName, err)
 		}
 		return resp.ControlPlane.ID, nil
-	} else {
-		// Update existing control plane if needed
-		needsUpdate := false
-		description := fmt.Sprintf("Control plane for team %s in environment %s", teamName, envName)
-
-		if cp.Description == nil || *cp.Description != description {
-			needsUpdate = true
-		}
-
-		// Check if labels need updating
-		if !mapsEqual(cp.Labels, labels) {
-			needsUpdate = true
-		}
-
-		if needsUpdate {
-			_, err := cpSvc.UpdateControlPlane(ctx, cp.ID, components.UpdateControlPlaneRequest{
-				Description: kk.String(description),
-				Labels:      labels,
-			})
-			if err != nil {
-				return "", fmt.Errorf("failed to update control plane %s: %w", cpName, err)
-			}
-		}
-		return cp.ID, nil
 	}
+
+	// Update existing control plane if needed
+	needsUpdate := false
+	description := fmt.Sprintf("Control plane for team %s in environment %s", teamName, envName)
+
+	if cp.Description == nil || *cp.Description != description {
+		needsUpdate = true
+	}
+
+	// Check if labels need updating
+	if !mapsEqual(cp.Labels, labels) {
+		needsUpdate = true
+	}
+
+	if needsUpdate {
+		_, err := cpSvc.UpdateControlPlane(ctx, cp.ID, components.UpdateControlPlaneRequest{
+			Description: kk.String(description),
+			Labels:      labels,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to update control plane %s: %w", cpName, err)
+		}
+	}
+	return cp.ID, nil
 }
 
 // findControlPlane returns the control plane if it exists, nil if it doesn't

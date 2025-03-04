@@ -65,7 +65,7 @@ func TestApplyUsers(t *testing.T) {
 		{
 			name:   "skips existing user",
 			emails: []string{"existing@example.com"},
-			setup: func(us *MockUserService, is *MockInviteService, tms *MockTeamMembershipService) {
+			setup: func(us *MockUserService, _ *MockInviteService, tms *MockTeamMembershipService) {
 				us.On("ListUsers", mock.Anything, mock.MatchedBy(func(req operations.ListUsersRequest) bool {
 					return req.Filter != nil &&
 						req.Filter.Email != nil &&
@@ -90,7 +90,7 @@ func TestApplyUsers(t *testing.T) {
 		{
 			name:   "handles list error",
 			emails: []string{"error@example.com"},
-			setup: func(us *MockUserService, is *MockInviteService, tms *MockTeamMembershipService) {
+			setup: func(us *MockUserService, _ *MockInviteService, _ *MockTeamMembershipService) {
 				us.On("ListUsers", mock.Anything, mock.Anything).
 					Return(nil, fmt.Errorf("list error"))
 			},

@@ -3,7 +3,7 @@ package portal
 import (
 	"context"
 
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	kk "github.com/Kong/sdk-konnect-go-internal"
@@ -37,7 +37,7 @@ type ApisConfigService interface {
 		opts ...operations.Option) (*operations.UpdateAPIResponse, error)
 }
 
-type ApiSpecsConfigService interface {
+type APISpecsConfigService interface {
 	CreateAPISpec(ctx context.Context,
 		apiID string,
 		createAPISpecRequest components.CreateAPISpecRequest,
@@ -50,13 +50,13 @@ type ApiSpecsConfigService interface {
 		opts ...operations.Option) (*operations.ListAPISpecsResponse, error)
 }
 
-type ApiPublicationConfigService interface {
+type APIPublicationConfigService interface {
 	PublishAPIToPortal(ctx context.Context,
 		request operations.PublishAPIToPortalRequest,
 		opts ...operations.Option) (*operations.PublishAPIToPortalResponse, error)
 }
 
-type ApiImplementationConfigService interface {
+type APIImplementationConfigService interface {
 	CreateAPIImplementation(ctx context.Context,
 		apiID string,
 		apiImplementation components.APIImplementation,
@@ -73,10 +73,10 @@ func ApplyPortalConfig(
 	envName string,
 	envType string,
 	portalsConfigService PortalsConfigService,
-	apisConfigService ApisConfigService,
-	labels map[string]string) (string, error) {
-
-	var portalId string
+	_ ApisConfigService,
+	labels map[string]string,
+) (string, error) {
+	var portalID string
 
 	portals, err := portalsConfigService.ListPortals(ctx, operations.ListPortalsRequest{
 		Filter: &components.PortalFilterParameters{
@@ -112,10 +112,10 @@ func ApplyPortalConfig(
 		if err != nil {
 			return "", err
 		}
-		portalId = newPortal.PortalResponseV3.ID
+		portalID = newPortal.PortalResponseV3.ID
 	} else {
-		portalId = portals.ListPortalsResponseV3.Data[0].ID
-		_, err = portalsConfigService.UpdatePortal(ctx, portalId, components.UpdatePortalV3{
+		portalID = portals.ListPortalsResponseV3.Data[0].ID
+		_, err = portalsConfigService.UpdatePortal(ctx, portalID, components.UpdatePortalV3{
 			DisplayName:                      kk.String(envName),
 			AuthenticationEnabled:            kk.Bool(authEnabled),
 			DefaultAPIVisibility:             components.UpdatePortalV3DefaultAPIVisibility(visibility).ToPointer(),
@@ -128,22 +128,22 @@ func ApplyPortalConfig(
 		}
 	}
 
-	return portalId, nil
+	return portalID, nil
 }
 
-func ApplyApiConfig(ctx context.Context,
+func ApplyAPIConfig(ctx context.Context,
 	apisConfigService ApisConfigService,
-	apiSpecsConfigService ApiSpecsConfigService,
-	apiPubConfigService ApiPublicationConfigService,
-	apiImplementationConfigService ApiImplementationConfigService,
+	apiSpecsConfigService APISpecsConfigService,
+	apiPubConfigService APIPublicationConfigService,
+	apiImplementationConfigService APIImplementationConfigService,
 	apiName string,
 	serviceConfig manifest.Service,
 	rawSpec []byte,
-	portalId string,
-	cpId string,
-	gwSvcId string,
-	labels map[string]string) (string, error) {
-
+	portalID string,
+	cpID string,
+	gwSvcID string,
+	labels map[string]string,
+) (string, error) {
 	var spec map[string]interface{}
 	err := yaml.Unmarshal(rawSpec, &spec)
 	if err != nil {
@@ -246,14 +246,14 @@ func ApplyApiConfig(ctx context.Context,
 	_, err = apiPubConfigService.PublishAPIToPortal(ctx,
 		operations.PublishAPIToPortalRequest{
 			APIID:    api.ID,
-			PortalID: portalId,
+			PortalID: portalID,
 		})
 	if err != nil {
 		return "", err
 	}
 	// **************************************************************************
 
-	if gwSvcId == "" {
+	if gwSvcID == "" {
 		return api.ID, nil
 	}
 
@@ -268,12 +268,12 @@ func ApplyApiConfig(ctx context.Context,
 			},
 			ControlPlaneID: &components.UUIDFieldFilter{
 				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-					Str: kk.String(cpId),
+					Str: kk.String(cpID),
 				},
 			},
 			ServiceID: &components.UUIDFieldFilter{
 				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-					Str: kk.String(gwSvcId),
+					Str: kk.String(gwSvcID),
 				},
 			},
 		},
@@ -285,8 +285,8 @@ func ApplyApiConfig(ctx context.Context,
 	if len(apiImpls.ListAPIImplementationsResponse.Data) < 1 {
 		_, err = apiImplementationConfigService.CreateAPIImplementation(ctx, api.ID, components.APIImplementation{
 			Service: components.APIImplementationService{
-				ControlPlaneID: cpId,
-				ID:             gwSvcId,
+				ControlPlaneID: cpID,
+				ID:             gwSvcID,
 			},
 		})
 		if err != nil {

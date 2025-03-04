@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/Kong/konnect-orchestrator/internal/deck/patch"
@@ -30,23 +29,26 @@ import (
 	kkComps "github.com/Kong/sdk-konnect-go/models/components"
 	giturl "github.com/kubescape/go-git-url"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+	"sigs.k8s.io/yaml"
 )
 
 //go:embed resources/platform/* resources/platform/.github/* resources/platform/.gitignore
 var resourceFiles embed.FS
-var loopInterval int
-var platformFileArg string
-var teamsFileArg string
-var organizationsFileArg string
-var version = "0.1.0"  // Replace with build info
-var commit = "unknown" // Replace with build info
-var date = "unknown"   // Replace with build info
+
+var (
+	loopInterval         int
+	platformFileArg      string
+	teamsFileArg         string
+	organizationsFileArg string
+	version              = "0.1.0"   // Replace with build info
+	commit               = "unknown" // Replace with build info
+	date                 = "unknown" // Replace with build info
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "koctl",
 	Short: "koctl is a CLI tool for managing Konnect resources",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		return cmd.Help()
 	},
 }
@@ -55,15 +57,16 @@ var applyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply a configuration to Konnect organizations",
 	Long: `The orchestrator will apply a Federated API strategy to one to many Konnect organizations
-based on the input received in 3 files. A Platform team config, a teams configuration, and an organizations configuration. 
-The files should be in YAML format and contain the necessary resource definitions. See the init command for an example of the required structure.`,
+based on the input received in 3 files. A Platform team config, a teams configuration, 
+and an organizations configuration. The files should be in YAML format and contain the 
+necessary resource definitions. See the init command for an example of the required structure.`,
 	RunE: runApply,
 }
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version of koctl",
-	Run: func(cmd *cobra.Command, args []string) {
+	Run: func(_ *cobra.Command, _ []string) {
 		fmt.Printf("koctl version: %s\nCommit: %s\nBuild date: %s\n", version, commit, date)
 	},
 }
@@ -72,7 +75,8 @@ func init() {
 	applyCmd.Flags().StringVar(&platformFileArg, "platform", "", "Path to the platform configuration file")
 	applyCmd.Flags().StringVar(&teamsFileArg, "teams", "", "Path to the teams configuration file")
 	applyCmd.Flags().StringVar(&organizationsFileArg, "orgs", "", "Path to the organizations configuration file")
-	applyCmd.Flags().IntVarP(&loopInterval, "loop", "l", 0, "Run in a loop with specified interval in seconds (0 = run once)")
+	applyCmd.Flags().IntVarP(&loopInterval,
+		"loop", "l", 0, "Run in a loop with specified interval in seconds (0 = run once)")
 
 	_ = applyCmd.MarkFlagRequired("platform")
 	_ = applyCmd.MarkFlagRequired("teams")
@@ -103,7 +107,7 @@ func readConfigSection(filePath string, out interface{}) error {
 	if err := yaml.Unmarshal(bytes, out); err != nil {
 		// Fall back to JSON if YAML fails
 		if jsonErr := json.Unmarshal(bytes, out); jsonErr != nil {
-			return fmt.Errorf("failed to parse file as YAML or JSON: %v", err)
+			return fmt.Errorf("failed to parse file as YAML or JSON: %w", err)
 		}
 	}
 	return nil
@@ -119,12 +123,12 @@ func applyService(
 	serviceName string,
 	serviceConfig manifest.Service,
 	serviceEnvConfig manifest.EnvironmentService,
-	portalId string,
+	portalID string,
 	region string,
 	accessToken string,
-	cpId string,
-	labels map[string]string) error {
-
+	cpID string,
+	labels map[string]string,
+) error {
 	labels["team-name"] = teamName
 	labels["service-name"] = *serviceConfig.Name
 
@@ -158,14 +162,14 @@ func applyService(
 		serviceName,
 	)
 
-	if err := os.MkdirAll(servicePath, 0755); err != nil {
+	if err := os.MkdirAll(servicePath, 0o755); err != nil {
 		return fmt.Errorf("failed to create service directory structure for %s: %w",
 			serviceName, err)
 	}
 
 	// This copies the Spec from memory into the Platform team Git repository location
 	// TODO: Stop waving hands at non-YAML spec files
-	if err := os.WriteFile(filepath.Join(servicePath, "openapi.yaml"), serviceSpec, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(servicePath, "openapi.yaml"), serviceSpec, 0o600); err != nil {
 		return fmt.Errorf("failed to write service spec for %s: %w",
 			serviceName, err)
 	}
@@ -194,7 +198,7 @@ func applyService(
 	if err != nil {
 		return fmt.Errorf("failed to marshal patch file for %s: %w", serviceName, err)
 	}
-	if err := os.WriteFile(filepath.Join(servicePath, "ko-patch.yaml"), koPatchFileBytes, 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(servicePath, "ko-patch.yaml"), koPatchFileBytes, 0o600); err != nil {
 		return fmt.Errorf("failed to write patch file for %s: %w", serviceName, err)
 	}
 
@@ -210,7 +214,7 @@ func applyService(
 	// here. If we can't find the service, we just ignore and proceed.
 	resp, err := internalRegionSdk.Services.ListService(context.Background(),
 		kkInternalOps.ListServiceRequest{
-			ControlPlaneID: cpId,
+			ControlPlaneID: cpID,
 			Tags:           kkInternal.String("ko-api-name=" + *apiName),
 		})
 	if err != nil {
@@ -223,15 +227,16 @@ func applyService(
 	if services == nil {
 		return fmt.Errorf("failed to list services: data is nil")
 	}
-	var serviceId string
+	var serviceID string
 	if len(services) == 1 {
-		serviceId = *services[0].GetID()
+		serviceID = *services[0].GetID()
 	} else {
-		fmt.Printf("!!!Found %d serivces for API %s. Cannot create API implementation relation, requires exactly 1 service with `ko-api-name` tag.\n", len(services), *apiName)
+		fmt.Printf("!!!Found %d serivces for API %s. Cannot create API implementation relation, "+
+			"requires exactly 1 service with `ko-api-name` tag.\n", len(services), *apiName)
 		return nil
 	}
 
-	_, err = portal.ApplyApiConfig(
+	_, err = portal.ApplyAPIConfig(
 		context.Background(),
 		internalRegionSdk.API,
 		internalRegionSdk.APISpecification,
@@ -240,9 +245,9 @@ func applyService(
 		*apiName,
 		serviceConfig,
 		serviceSpec,
-		portalId,
-		cpId,
-		serviceId,
+		portalID,
+		cpID,
+		serviceID,
 		labels)
 	if err != nil {
 		return err
@@ -257,7 +262,8 @@ func applyPortal(
 	region string,
 	envName string,
 	envType string,
-	labels map[string]string) (string, error) {
+	labels map[string]string,
+) (string, error) {
 	// V3 Portals currently require an internal SDK as the API is not yet GA
 	internalRegionSdk := kkInternal.New(
 		kkInternal.WithSecurity(kkInternalComps.Security{
@@ -267,7 +273,7 @@ func applyPortal(
 	)
 
 	// Apply the Developer Portal configuration for the environment
-	portalId, err := portal.ApplyPortalConfig(context.Background(),
+	portalID, err := portal.ApplyPortalConfig(context.Background(),
 		portalDisplayName,
 		envName,
 		envType,
@@ -277,7 +283,7 @@ func applyPortal(
 	if err != nil {
 		return "", fmt.Errorf("failed to apply portal configuration: %w", err)
 	}
-	return portalId, nil
+	return portalID, nil
 }
 
 func applyTeam(teamName string,
@@ -289,9 +295,9 @@ func applyTeam(teamName string,
 	sdk *kk.SDK,
 	platformGit manifest.GitConfig,
 	teamEnvironmentConfig *manifest.TeamEnvironment,
-	portalId string,
-	labels map[string]string) error {
-
+	portalID string,
+	labels map[string]string,
+) error {
 	fmt.Printf("-Processing team %s\n", teamName)
 
 	regionSpecificSDK := kk.New(
@@ -357,7 +363,9 @@ func applyTeam(teamName string,
 
 			serviceConfig, exists := teamConfig.Services[serviceName]
 			if !exists {
-				return fmt.Errorf("service %s referenced in team %s in organization %s environment %s not found in team configuration",
+				return fmt.Errorf(
+					"service %s referenced in team %s in organization "+
+						"%s environment %s not found in team configuration",
 					serviceName, teamName, orgName, envName)
 			}
 
@@ -371,7 +379,7 @@ func applyTeam(teamName string,
 				serviceName,
 				*serviceConfig,
 				*serviceEnvConfig,
-				portalId,
+				portalID,
 				envConfig.Region,
 				accessToken,
 				cpID,
@@ -402,7 +410,7 @@ func applyTeam(teamName string,
 				serviceName,
 				*serviceConfig,
 				serviceEnvConfig,
-				portalId,
+				portalID,
 				envConfig.Region,
 				accessToken,
 				cpID,
@@ -448,7 +456,10 @@ func applyTeam(teamName string,
 			gitURL.GetRepoName(),
 			branchName,
 			fmt.Sprintf("[Konnect] [%s] Konnect Orchestrator applied changes", envName),
-			fmt.Sprintf("For the %s environment, Konnect Orchestrator has detected changes in upstream service repositories and has generated the associated changes.", envName),
+			fmt.Sprintf(
+				"For the %s environment, Konnect Orchestrator has detected changes in upstream service repositories "+
+					"and has generated the associated changes.", envName,
+			),
 			*platformGit.GitHub,
 		)
 		if err != nil {
@@ -468,7 +479,8 @@ func applyEnvironment(
 	envConfig manifest.Environment,
 	teams map[string]*manifest.Team,
 	platformGit manifest.GitConfig,
-	sdk *kk.SDK) error {
+	sdk *kk.SDK,
+) error {
 	fmt.Printf("Processing environment %s in organization %s\n", envName, orgName)
 
 	labels := map[string]string{
@@ -478,7 +490,7 @@ func applyEnvironment(
 		"env-type":                envConfig.Type,
 	}
 
-	portalId, err := applyPortal(
+	portalID, err := applyPortal(
 		accessToken,
 		orgName,
 		envConfig.Region,
@@ -501,7 +513,7 @@ func applyEnvironment(
 				sdk,
 				platformGit,
 				nil, // nil because we use the default config in the teamConfig
-				portalId,
+				portalID,
 				labels)
 			if err != nil {
 				return err
@@ -521,7 +533,7 @@ func applyEnvironment(
 				sdk,
 				platformGit,
 				teamEnvironmentConfig,
-				portalId,
+				portalID,
 				labels)
 			if err != nil {
 				return err
@@ -536,8 +548,8 @@ func applyOrganization(
 	orgName string,
 	platformGit manifest.GitConfig,
 	orgConfig manifest.Organization,
-	teams map[string]*manifest.Team) error {
-
+	teams map[string]*manifest.Team,
+) error {
 	// Resolve the organization's access token
 	accessToken, err := koUtil.ResolveSecretValue(orgConfig.AccessToken)
 	if err != nil {
@@ -627,7 +639,7 @@ func copyFile(embedFS embed.FS, srcPath, dstPath string) error {
 	defer srcFile.Close()
 
 	// Ensure the destination directory exists
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory %s: %w", filepath.Dir(dstPath), err)
 	}
 
@@ -659,7 +671,7 @@ func copyEmbeddedFilesRecursive(embedFS embed.FS, srcDir, dstDir string) error {
 
 		if entry.IsDir() {
 			// Ensure the destination directory exists
-			if err := os.MkdirAll(dstPath, 0755); err != nil {
+			if err := os.MkdirAll(dstPath, 0o755); err != nil {
 				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
 			}
 			// Recurse into subdirectory
@@ -677,7 +689,6 @@ func copyEmbeddedFilesRecursive(embedFS embed.FS, srcDir, dstDir string) error {
 }
 
 func applyPlatformRepo(gitCfg *manifest.GitConfig) error {
-
 	// Apply changes to the Platform repository, these include Workflow files, configurations, etc...
 	platformRepoDir, err := git.Clone(*gitCfg)
 	if err != nil {
@@ -737,7 +748,7 @@ func applyPlatformRepo(gitCfg *manifest.GitConfig) error {
 	return nil
 }
 
-func runApply(cmd *cobra.Command, args []string) error {
+func runApply(_ *cobra.Command, _ []string) error {
 	applyOnce := func() error {
 		platformFilePath, err := filepath.Abs(platformFileArg)
 		if err != nil {
@@ -801,97 +812,6 @@ func runApply(cmd *cobra.Command, args []string) error {
 		fmt.Printf("--- Waiting %d seconds before next control loop \n", loopInterval)
 		time.Sleep(time.Duration(loopInterval) * time.Second)
 	}
-}
-
-func copyDir(src, dst string) error {
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return fmt.Errorf("failed to read directory %s: %w", src, err)
-	}
-
-	// Create directory if it doesn't exist (preserve if it does)
-	if err := os.MkdirAll(dst, 0755); err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", dst, err)
-	}
-
-	for _, entry := range entries {
-		srcPath := filepath.Join(src, entry.Name())
-		dstPath := filepath.Join(dst, entry.Name())
-
-		if entry.IsDir() {
-			if err := copyDir(srcPath, dstPath); err != nil {
-				return err
-			}
-		} else {
-			content, err := os.ReadFile(srcPath)
-			if err != nil {
-				return fmt.Errorf("failed to read file %s: %w", srcPath, err)
-			}
-
-			if err := os.WriteFile(dstPath, content, 0644); err != nil {
-				return fmt.Errorf("failed to write file %s: %w", dstPath, err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func mergeGitignore(srcPath, dstPath string) error {
-	// Read source .gitignore content
-	srcContent, err := os.ReadFile(srcPath)
-	if err != nil {
-		return fmt.Errorf("failed to read source .gitignore: %w", err)
-	}
-
-	srcLines := make(map[string]bool)
-	for _, line := range strings.Split(strings.TrimSpace(string(srcContent)), "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			srcLines[line] = true
-		}
-	}
-
-	var dstLines []string
-	// Read destination .gitignore if it exists
-	if _, err := os.Stat(dstPath); err == nil {
-		dstContent, err := os.ReadFile(dstPath)
-		if err != nil {
-			return fmt.Errorf("failed to read destination .gitignore: %w", err)
-		}
-		dstLines = strings.Split(strings.TrimSpace(string(dstContent)), "\n")
-
-		// Remove empty lines and check which source lines already exist
-		for _, line := range dstLines {
-			if line = strings.TrimSpace(line); line != "" {
-				srcLines[line] = false // Mark as already existing
-			}
-		}
-	}
-
-	// Append only new lines from source
-	f, err := os.OpenFile(dstPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open destination .gitignore: %w", err)
-	}
-	defer f.Close()
-
-	// If the file is not empty and doesn't end with a newline, add one
-	if len(dstLines) > 0 {
-		if _, err := f.WriteString("\n"); err != nil {
-			return fmt.Errorf("failed to write newline to .gitignore: %w", err)
-		}
-	}
-
-	// Write new lines
-	for line, shouldAdd := range srcLines {
-		if shouldAdd {
-			if _, err := f.WriteString(line + "\n"); err != nil {
-				return fmt.Errorf("failed to write to .gitignore: %w", err)
-			}
-		}
-	}
-
-	return nil
 }
 
 func Execute() error {

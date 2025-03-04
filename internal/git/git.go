@@ -46,9 +46,9 @@ func getAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 			Password: key,
 		}
 		return bashAuth, nil
-	} else {
-		return nil, errors.New("unsupported auth type: " + *gitConfig.Auth.Type)
 	}
+
+	return nil, errors.New("unsupported auth type: " + *gitConfig.Auth.Type)
 }
 
 func GetRemoteFile(gitConfig manifest.GitConfig, branch, path string) ([]byte, error) {
@@ -80,7 +80,6 @@ func GetRemoteFile(gitConfig manifest.GitConfig, branch, path string) ([]byte, e
 
 // CloneInto clones a git repository into the specified directory
 func CloneInto(gitConfig manifest.GitConfig, dir string) error {
-
 	auth, err := getAuthMethod(gitConfig)
 	if err != nil {
 		return err
@@ -126,6 +125,7 @@ func IsClean(dir string) (bool, error) {
 
 	return status.IsClean(), nil
 }
+
 func Branch(dir string, branch string) error {
 	r, err := git.PlainOpen(dir)
 	if err != nil {
@@ -139,7 +139,7 @@ func Branch(dir string, branch string) error {
 
 	branchRef := plumbing.NewBranchReferenceName(branch)
 	branchCoOpts := git.CheckoutOptions{
-		Branch: plumbing.ReferenceName(branchRef),
+		Branch: branchRef,
 		Force:  true,
 		Create: true,
 	}
@@ -193,6 +193,7 @@ func Commit(dir string, message string, author manifest.Author) error {
 
 	return nil
 }
+
 func Push(dir string, gitConfig manifest.GitConfig) error {
 	r, err := git.PlainOpen(dir)
 	if err != nil {
@@ -240,7 +241,8 @@ func CheckoutBranch(dir string, branch string, gitConfig manifest.GitConfig) err
 		Force: true,
 	})
 	// Only return error if it's not "already up to date" or "no matching ref spec"
-	if err != nil && err != git.NoErrAlreadyUpToDate && !errors.Is(err, git.NoMatchingRefSpecError{}) {
+	if !errors.Is(err, git.NoErrAlreadyUpToDate) ||
+		!errors.Is(err, git.NoMatchingRefSpecError{}) {
 		return fmt.Errorf("failed to fetch remote branch: %w", err)
 	}
 
@@ -252,7 +254,7 @@ func CheckoutBranch(dir string, branch string, gitConfig manifest.GitConfig) err
 	if err == nil {
 		// Remote branch exists, create local branch from remote
 		_, err = r.Reference(branchRef, true)
-		if err == plumbing.ErrReferenceNotFound {
+		if errors.Is(err, plumbing.ErrReferenceNotFound) {
 			// Create new local branch tracking remote branch
 			headRef := plumbing.NewHashReference(branchRef, remoteRef.Hash())
 			err = r.Storer.SetReference(headRef)

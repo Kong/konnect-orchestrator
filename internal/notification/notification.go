@@ -37,8 +37,8 @@ type NotificationsService interface {
 func ApplyNotificationsConfig(
 	ctx context.Context,
 	notificationsService NotificationsService,
-	notificationsConfig *manifest.Notifications) error {
-
+	notificationsConfig *manifest.Notifications,
+) error {
 	var (
 		emailEnabled = true
 		inAppEnabled = true
@@ -132,7 +132,7 @@ func ApplyNotificationsConfig(
 }
 
 func desiredStateIsMatching(channels []components.NotificationChannel, emailEnabled, inAppEnabled bool) bool {
-	var desiredIsMatching = true
+	desiredIsMatching := true
 
 	for _, c := range channels {
 		if c.Type == components.NotificationChannelTypeEmail && c.Enabled != emailEnabled {

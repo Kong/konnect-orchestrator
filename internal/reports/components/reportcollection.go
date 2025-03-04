@@ -10,7 +10,7 @@ import (
 type ReportCollection struct {
 	// Returns pagination information
 	Meta *components.PaginatedMeta `json:"meta,omitempty"`
-	Data []ReportCollectionReport       `json:"data,omitempty"`
+	Data []ReportCollectionReport  `json:"data,omitempty"`
 }
 
 func (o *ReportCollection) GetMeta() *components.PaginatedMeta {

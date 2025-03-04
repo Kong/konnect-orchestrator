@@ -11,10 +11,17 @@ import (
 )
 
 // RolesAPI defines the interface for the Roles SDK API.
-type RoleService interface {
-	GetPredefinedRoles(ctx context.Context, opts ...operations.Option) (*operations.GetPredefinedRolesResponse, error)
-	ListTeamRoles(ctx context.Context, teamID string, filter *operations.ListTeamRolesQueryParamFilter, opts ...operations.Option) (*operations.ListTeamRolesResponse, error)
-	TeamsAssignRole(ctx context.Context, teamID string, assignRole *components.AssignRole, opts ...operations.Option) (*operations.TeamsAssignRoleResponse, error)
+type Service interface {
+	GetPredefinedRoles(ctx context.Context,
+		opts ...operations.Option) (*operations.GetPredefinedRolesResponse, error)
+	ListTeamRoles(ctx context.Context,
+		teamID string,
+		filter *operations.ListTeamRolesQueryParamFilter,
+		opts ...operations.Option) (*operations.ListTeamRolesResponse, error)
+	TeamsAssignRole(ctx context.Context,
+		teamID string,
+		assignRole *components.AssignRole,
+		opts ...operations.Option) (*operations.TeamsAssignRoleResponse, error)
 }
 
 // EnvironmentType represents the type of environment
@@ -27,10 +34,11 @@ const (
 
 func applyProdRoles(
 	ctx context.Context,
-	rolesSvc RoleService,
+	rolesSvc Service,
 	teamID string,
 	cpID string,
-	envConfig manifest.Environment) error {
+	envConfig manifest.Environment,
+) error {
 	// Check if the role is already assigned
 	listResp, err := rolesSvc.ListTeamRoles(ctx, teamID, &operations.ListTeamRolesQueryParamFilter{
 		RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Viewer")),
@@ -61,10 +69,11 @@ func applyProdRoles(
 
 func applyDevRoles(
 	ctx context.Context,
-	rolesSvc RoleService,
+	rolesSvc Service,
 	teamID string,
 	cpID string,
-	envConfig manifest.Environment) error {
+	envConfig manifest.Environment,
+) error {
 	// Check if the role is already assigned
 	listResp, err := rolesSvc.ListTeamRoles(ctx, teamID, &operations.ListTeamRolesQueryParamFilter{
 		RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Admin")),
@@ -96,10 +105,11 @@ func applyDevRoles(
 // ApplyRoles assigns the appropriate role to a team based on the environment type
 func ApplyRoles(
 	ctx context.Context,
-	rolesSvc RoleService,
+	rolesSvc Service,
 	teamID string,
 	cpID string,
-	envConfig manifest.Environment) error {
+	envConfig manifest.Environment,
+) error {
 	envType := EnvironmentType(envConfig.Type)
 	if envType == DEV {
 		return applyDevRoles(ctx, rolesSvc, teamID, cpID, envConfig)

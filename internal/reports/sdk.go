@@ -71,7 +71,7 @@ func (c *sdkConfiguration) GetServerDetails() (string, map[string]string) {
 }
 
 type SDK struct {
-	CustomReports                  *CustomReports
+	CustomReports    *CustomReports
 	sdkConfiguration sdkConfiguration
 }
 

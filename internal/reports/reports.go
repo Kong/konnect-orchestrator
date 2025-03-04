@@ -9,15 +9,20 @@ import (
 )
 
 type CustomReportsService interface {
-	GetReports(ctx context.Context, pageSize *int64, pageNumber *int64, opts ...operations.Option) (*operations.GetReportsResponse, error)
-	CreateReport(ctx context.Context, request *components.ReportInput, opts ...operations.Option) (*operations.CreateReportResponse, error)
+	GetReports(ctx context.Context,
+		pageSize *int64,
+		pageNumber *int64,
+		opts ...operations.Option) (*operations.GetReportsResponse, error)
+	CreateReport(ctx context.Context,
+		request *components.ReportInput,
+		opts ...operations.Option) (*operations.CreateReportResponse, error)
 }
 
 // If you change the name of a report, a new one will be created and the old one remains
 func ApplyReports(
 	ctx context.Context,
-	reportsService CustomReportsService) error {
-
+	reportsService CustomReportsService,
+) error {
 	reports, err := reportsService.GetReports(ctx, kk.Int64(50), kk.Int64(1))
 	if err != nil {
 		return err

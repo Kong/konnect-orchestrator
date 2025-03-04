@@ -12,21 +12,30 @@ import (
 )
 
 // https://docs.konghq.com/konnect/api/identity-management/latest/#/Teams
-type TeamService interface {
-	ListTeams(ctx context.Context, request operations.ListTeamsRequest, opts ...operations.Option) (*operations.ListTeamsResponse, error)
-	CreateTeam(ctx context.Context, request *components.CreateTeam, opts ...operations.Option) (*operations.CreateTeamResponse, error)
-	GetTeam(ctx context.Context, teamID string, opts ...operations.Option) (*operations.GetTeamResponse, error)
-	UpdateTeam(ctx context.Context, teamID string, updateTeam *components.UpdateTeam, opts ...operations.Option) (*operations.UpdateTeamResponse, error)
+type Service interface {
+	ListTeams(ctx context.Context,
+		request operations.ListTeamsRequest,
+		opts ...operations.Option) (*operations.ListTeamsResponse, error)
+	CreateTeam(ctx context.Context,
+		request *components.CreateTeam,
+		opts ...operations.Option) (*operations.CreateTeamResponse, error)
+	GetTeam(ctx context.Context,
+		teamID string,
+		opts ...operations.Option) (*operations.GetTeamResponse, error)
+	UpdateTeam(ctx context.Context,
+		teamID string,
+		updateTeam *components.UpdateTeam,
+		opts ...operations.Option) (*operations.UpdateTeamResponse, error)
 }
 
 func ApplyTeam(ctx context.Context,
-	teamSvc TeamService,
+	teamSvc Service,
 	teamMembershipSvc user.TeamMembershipService,
-	userSvc user.UserService,
+	userSvc user.Service,
 	inviteSvc user.InviteService,
 	teamName string,
-	teamConfig manifest.Team) (string, error) {
-
+	teamConfig manifest.Team,
+) (string, error) {
 	// Step 1: Check if team exists
 	var teamID string
 	team, err := findTeamByName(ctx, teamSvc, teamName)
@@ -79,7 +88,7 @@ func ApplyTeam(ctx context.Context,
 }
 
 // findTeamByName searches for a team by name and returns its ID if found, empty string if not found
-func findTeamByName(ctx context.Context, teamSvc TeamService, teamName string) (*components.Team, error) {
+func findTeamByName(ctx context.Context, teamSvc Service, teamName string) (*components.Team, error) {
 	// List all teams
 	resp, err := teamSvc.ListTeams(ctx, operations.ListTeamsRequest{})
 	if err != nil {

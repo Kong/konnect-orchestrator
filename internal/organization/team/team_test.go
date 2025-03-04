@@ -16,7 +16,9 @@ type MockUserService struct {
 	mock.Mock
 }
 
-func (m *MockUserService) ListUsers(ctx context.Context, request operations.ListUsersRequest, opts ...operations.Option) (*operations.ListUsersResponse, error) {
+func (m *MockUserService) ListUsers(ctx context.Context,
+	request operations.ListUsersRequest, _ ...operations.Option,
+) (*operations.ListUsersResponse, error) {
 	args := m.Called(ctx, request)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -28,7 +30,9 @@ type MockInviteService struct {
 	mock.Mock
 }
 
-func (m *MockInviteService) InviteUser(ctx context.Context, request *components.InviteUser, opts ...operations.Option) (*operations.InviteUserResponse, error) {
+func (m *MockInviteService) InviteUser(ctx context.Context,
+	request *components.InviteUser, _ ...operations.Option,
+) (*operations.InviteUserResponse, error) {
 	args := m.Called(ctx, request)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -40,7 +44,9 @@ type MockTeamMembershipService struct {
 	mock.Mock
 }
 
-func (m *MockTeamMembershipService) ListTeamUsers(ctx context.Context, request operations.ListTeamUsersRequest, opts ...operations.Option) (*operations.ListTeamUsersResponse, error) {
+func (m *MockTeamMembershipService) ListTeamUsers(ctx context.Context,
+	request operations.ListTeamUsersRequest, _ ...operations.Option,
+) (*operations.ListTeamUsersResponse, error) {
 	args := m.Called(ctx, request)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -69,7 +75,7 @@ func TestApplyTeam(t *testing.T) {
 					},
 				},
 			},
-			setup: func(m *MockTeamService, tm *MockTeamMembershipService, us *MockUserService, is *MockInviteService) {
+			setup: func(_ *MockTeamService, _ *MockTeamMembershipService, _ *MockUserService, _ *MockInviteService) {
 				// Add your mock expectations here
 			},
 			wantErr: false,
@@ -77,8 +83,7 @@ func TestApplyTeam(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-
+		t.Run(tt.name, func(_ *testing.T) {
 		})
 	}
 }

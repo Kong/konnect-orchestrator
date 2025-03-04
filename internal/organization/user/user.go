@@ -8,19 +8,28 @@ import (
 	"github.com/Kong/sdk-konnect-go/models/operations"
 )
 
-// UserService defines the interface for user-related operations
-type UserService interface {
-	ListUsers(ctx context.Context, request operations.ListUsersRequest, opts ...operations.Option) (*operations.ListUsersResponse, error)
+// Service defines the interface for user-related operations
+type Service interface {
+	ListUsers(ctx context.Context,
+		request operations.ListUsersRequest,
+		opts ...operations.Option) (*operations.ListUsersResponse, error)
 }
 
 // InviteService defines the interface for invite-related operations
 type InviteService interface {
-	InviteUser(ctx context.Context, request *components.InviteUser, opts ...operations.Option) (*operations.InviteUserResponse, error)
+	InviteUser(ctx context.Context,
+		request *components.InviteUser,
+		opts ...operations.Option) (*operations.InviteUserResponse, error)
 }
 
 type TeamMembershipService interface {
-	ListTeamUsers(ctx context.Context, request operations.ListTeamUsersRequest, opts ...operations.Option) (*operations.ListTeamUsersResponse, error)
-	AddUserToTeam(ctx context.Context, teamID string, addUserToTeam *components.AddUserToTeam, opts ...operations.Option) (*operations.AddUserToTeamResponse, error)
+	ListTeamUsers(ctx context.Context,
+		request operations.ListTeamUsersRequest,
+		opts ...operations.Option) (*operations.ListTeamUsersResponse, error)
+	AddUserToTeam(ctx context.Context,
+		teamID string,
+		addUserToTeam *components.AddUserToTeam,
+		opts ...operations.Option) (*operations.AddUserToTeamResponse, error)
 }
 
 // User represents a user in the organization
@@ -28,7 +37,7 @@ type User struct {
 	Email string `json:"email" yaml:"email"`
 }
 
-func lookupUserByEmail(ctx context.Context, userSvc UserService, email string) (exists bool, userID string, err error) {
+func lookupUserByEmail(ctx context.Context, userSvc Service, email string) (exists bool, userID string, err error) {
 	equalsFilter := components.CreateStringFieldEqualsFilterStr(email)
 	listResp, err := userSvc.ListUsers(ctx, operations.ListUsersRequest{
 		Filter: &operations.ListUsersQueryParamFilter{
@@ -52,7 +61,7 @@ func lookupUserByEmail(ctx context.Context, userSvc UserService, email string) (
 
 func ApplyUsers(
 	ctx context.Context,
-	userSvc UserService,
+	userSvc Service,
 	inviteSvc InviteService,
 	teamID string,
 	teamMembershipSvc TeamMembershipService,
