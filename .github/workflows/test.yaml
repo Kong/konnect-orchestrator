@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - run: git config --global url.https://x-access-token:$GITHUB_TOKEN@github.com/.insteadOf https://github.com/
+      - run: git config --global url.https://$GITHUB_TOKEN@github.com/.insteadOf https://github.com/
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN_PRIVATE_READ }}
       - name: Setup go
