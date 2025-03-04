@@ -28,3 +28,5 @@ koctl
 .vscode/
 
 .DS_Store
+# Added by goreleaser init:
+dist/

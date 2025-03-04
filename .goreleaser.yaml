@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+    # you may remove this if you don't need go generate
+    - go generate ./...
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    format: zip
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+brews:
+  - repository:
+      owner: kong
+      name: homebrew-konnect-orchestrator
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+      branch: main 
+      pull_request:
+        enabled: false
+    commit_author:
+      name: Rick Spurgeon 
+      email: rspurgeon@users.noreply.github.com
+    homepage: "https://github.com/kong/konnect-orchestrator"
+    description: Konnect Organization orchestration via declarative configuration 
+    skip_upload: auto
+    test: |
+        system "#{bin}/koctl", "version"

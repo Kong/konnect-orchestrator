@@ -39,6 +39,9 @@ var loopInterval int
 var platformFileArg string
 var teamsFileArg string
 var organizationsFileArg string
+var version = "0.1.0"  // Replace with build info
+var commit = "unknown" // Replace with build info
+var date = "unknown"   // Replace with build info
 
 var rootCmd = &cobra.Command{
 	Use:   "koctl",
@@ -57,6 +60,14 @@ The files should be in YAML format and contain the necessary resource definition
 	RunE: runApply,
 }
 
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Print the version of koctl",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("koctl version: %s\nCommit: %s\nBuild date: %s\n", version, commit, date)
+	},
+}
+
 func init() {
 	applyCmd.Flags().StringVar(&platformFileArg, "platform", "", "Path to the platform configuration file")
 	applyCmd.Flags().StringVar(&teamsFileArg, "teams", "", "Path to the teams configuration file")
@@ -70,6 +81,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.AddCommand(applyCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 func readConfigSection(filePath string, out interface{}) error {
