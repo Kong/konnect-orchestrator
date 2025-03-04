@@ -18,8 +18,9 @@ builds:
       - windows
       - darwin
     ldflags:
-    - -s -w -X github.com/kong/konnect-orchestrator/cmd/koctl/main.VERSION={{ .Tag }}
-      #- -s -w -X github.com/kong/konnect-orchestrator/cmd/koctl/command.VERSION={{ .Tag }} -X github.com/kong/deck/cmd.COMMIT={{ .ShortCommit }}
+    #Default: '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=goreleaser'.
+    #- -s -w -X github.com/kong/konnect-orchestrator/cmd/koctl/command.VERSION={{ .Tag }} -X github.com/kong/deck/cmd.COMMIT={{ .ShortCommit }}
+    - -s -w -X cmd/koctl/main.VERSION={{ .Tag }}
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     formats: [ 'zip' ]
