@@ -41,9 +41,9 @@ var (
 	platformFileArg      string
 	teamsFileArg         string
 	organizationsFileArg string
-	version              = "0.1.0"   // Replace with build info
-	commit               = "unknown" // Replace with build info
-	date                 = "unknown" // Replace with build info
+	VERSION              = "dev"
+	COMMIT               = "unknown"
+	DATE                 = "unknown"
 )
 
 var rootCmd = &cobra.Command{
@@ -68,7 +68,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version of koctl",
 	Run: func(_ *cobra.Command, _ []string) {
-		fmt.Printf("koctl version: %s\nCommit: %s\nBuild date: %s\n", version, commit, date)
+		fmt.Printf("koctl version: %s\nCommit: %s\nBuild date: %s\n", VERSION, COMMIT, DATE)
 	},
 }
 
