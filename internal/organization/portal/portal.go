@@ -3,7 +3,7 @@ package portal
 import (
 	"context"
 
-	"sigs.k8s.io/yaml"
+	"gopkg.in/yaml.v3"
 
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	kk "github.com/Kong/sdk-konnect-go-internal"

@@ -9,7 +9,10 @@ type GlobalAPIURLRequestHook struct{}
 
 var _ beforeRequestHook = (*GlobalAPIURLRequestHook)(nil)
 
-func (i *GlobalAPIURLRequestHook) BeforeRequest(hookCtx BeforeRequestContext, req *http.Request) (*http.Request, error) {
+func (i *GlobalAPIURLRequestHook) BeforeRequest(
+	hookCtx BeforeRequestContext,
+	req *http.Request,
+) (*http.Request, error) {
 	// NOTE: the list below was generated with
 	// for op in $(rg --no-line-number -o "operationId: (.*)" -r '$1' ../platform-api/src/konnect/definitions/identity/v3/openapi.yaml); do printf "case \"$op\":\n\tfallthrough\n"; done
 	switch hookCtx.OperationID {

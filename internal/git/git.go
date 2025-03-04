@@ -240,9 +240,9 @@ func CheckoutBranch(dir string, branch string, gitConfig manifest.GitConfig) err
 		},
 		Force: true,
 	})
-	// Only return error if it's not "already up to date" or "no matching ref spec"
-	if !errors.Is(err, git.NoErrAlreadyUpToDate) ||
-		!errors.Is(err, git.NoMatchingRefSpecError{}) {
+	// Only return error if it's NOT "already up to date" AND NOT "no matching ref spec"
+	noMatchingRefErr := git.NoMatchingRefSpecError{}.Is(err)
+	if !noMatchingRefErr && !errors.Is(err, git.NoErrAlreadyUpToDate) {
 		return fmt.Errorf("failed to fetch remote branch: %w", err)
 	}
 

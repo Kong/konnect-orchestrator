@@ -55,7 +55,7 @@ type HTTPDumpResponseHook struct{}
 var _ afterSuccessHook = (*HTTPDumpResponseHook)(nil)
 
 // AfterSuccess dumps the response to stdout if enabled.
-func (i *HTTPDumpResponseHook) AfterSuccess(hookCtx AfterSuccessContext, res *http.Response) (*http.Response, error) {
+func (i *HTTPDumpResponseHook) AfterSuccess(_ AfterSuccessContext, res *http.Response) (*http.Response, error) {
 	return dumpResponse(res), nil
 }
 
@@ -65,7 +65,7 @@ type HTTPDumpResponseErrorHook struct{}
 var _ afterErrorHook = (*HTTPDumpResponseErrorHook)(nil)
 
 // AfterError dumps the error response to stdout if enabled.
-func (i *HTTPDumpResponseErrorHook) AfterError(hookCtx AfterErrorContext, res *http.Response, err error) (*http.Response, error) {
+func (i *HTTPDumpResponseErrorHook) AfterError(_ AfterErrorContext, res *http.Response, err error) (*http.Response, error) {
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}
@@ -79,7 +79,7 @@ func dumpResponse(res *http.Response) *http.Response {
 
 	b, err := httputil.DumpResponse(res, true)
 	if err != nil {
-		fmt.Printf("Error dumping respone: %v\n", err)
+		fmt.Printf("Error dumping response: %v\n", err)
 	} else {
 		fmt.Printf("response:\n%s\n\n", b)
 	}

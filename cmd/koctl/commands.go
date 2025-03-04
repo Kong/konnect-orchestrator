@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
+
 	"github.com/Kong/konnect-orchestrator/internal/deck/patch"
 	"github.com/Kong/konnect-orchestrator/internal/gateway"
 	"github.com/Kong/konnect-orchestrator/internal/git"
@@ -28,8 +31,6 @@ import (
 	kkInternalOps "github.com/Kong/sdk-konnect-go-internal/models/operations"
 	kkComps "github.com/Kong/sdk-konnect-go/models/components"
 	giturl "github.com/kubescape/go-git-url"
-	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
 )
 
 //go:embed resources/platform/* resources/platform/.github/* resources/platform/.gitignore
@@ -188,7 +189,7 @@ func applyService(
 			},
 		},
 	}
-	koPatchFile := patch.PatchFile{
+	koPatchFile := patch.File{
 		FormatVersion: "1.0",
 		Patches:       []patch.Patch{apiNameServicePatch},
 	}

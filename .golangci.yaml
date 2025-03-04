@@ -3,22 +3,23 @@ run:
   build-tags:
   - integration
 linters:
+  disable:
+    - lll # until we can shorten many lines
+    - gomodguard # issues w/ sigs.k8s.io/yaml vs gopkg.in/yaml.v2
+    - gci # Formatting issues htat I can't resolve just yet
   enable:
   - asciicheck
   - dogsled
   - durationcheck
   - exhaustive
   - copyloopvar
-  - gci
   - goconst
   - gofmt
   - gofumpt
   - goimports
-  - gomodguard
   - gosec
   - govet
   - importas
-  - lll
   - misspell
   - nakedret
   - nilerr

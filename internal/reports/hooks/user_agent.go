@@ -10,7 +10,7 @@ type UserAgentPreRequestHook struct{}
 
 var _ beforeRequestHook = (*UserAgentPreRequestHook)(nil)
 
-func (i *UserAgentPreRequestHook) BeforeRequest(hookCtx BeforeRequestContext, req *http.Request) (*http.Request, error) {
+func (i *UserAgentPreRequestHook) BeforeRequest(_ BeforeRequestContext, req *http.Request) (*http.Request, error) {
 	ua := metadata.GetUserAgent()
 	if ua != "" {
 		req.Header.Set("User-Agent", ua)

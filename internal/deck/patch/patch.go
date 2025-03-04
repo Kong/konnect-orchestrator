@@ -5,7 +5,7 @@ type Patch struct {
 	Values    map[string]interface{} `yaml:"values"`
 }
 
-type PatchFile struct {
+type File struct {
 	FormatVersion string  `yaml:"_format_version"`
 	Patches       []Patch `yaml:"patches"`
 }
