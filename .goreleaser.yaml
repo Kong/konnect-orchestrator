@@ -22,7 +22,7 @@ builds:
       #- -s -w -X github.com/kong/konnect-orchestrator/cmd/koctl/command.VERSION={{ .Tag }} -X github.com/kong/deck/cmd.COMMIT={{ .ShortCommit }}
 archives:
   - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
-    format: zip
+    formats: [ 'zip' ]
 checksum:
   name_template: "checksums.txt"
 snapshot:
@@ -34,7 +34,8 @@ changelog:
       - "^docs:"
       - "^test:"
 brews:
-  - repository:
+  - name: koctl
+    repository:
       owner: kong
       name: homebrew-konnect-orchestrator
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
@@ -45,7 +46,7 @@ brews:
       name: Rick Spurgeon 
       email: rspurgeon@users.noreply.github.com
     homepage: "https://github.com/kong/konnect-orchestrator"
-    description: Konnect Organization orchestration via declarative configuration 
+    description: Opinionated Kong Konnect organization orchestration via declarative configuration 
     skip_upload: auto
     test: |
         system "#{bin}/koctl", "version"
