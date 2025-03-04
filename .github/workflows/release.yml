@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*.*'
 
+env:
+  GOPRIVATE: github.com/Kong/*
+
 jobs:
   goreleaser:
     timeout-minutes: ${{ fromJSON(vars.GHA_DEFAULT_TIMEOUT) }}
@@ -14,6 +17,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - run: git config --global url.https://x-access-token:$GITHUB_TOKEN@github.com/.insteadOf https://github.com/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN_PRIVATE_READ }}
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
