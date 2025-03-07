@@ -20,6 +20,22 @@ import (
 
 // getAuthMethod returns an ssh.AuthMethod based on the git config, or nil if no auth is specified
 func getAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
+	if gitConfig.Auth == nil {
+		// by default, we can use GitHub auth for git auth which can simplify the configuration required
+		if gitConfig.GitHub == nil || gitConfig.GitHub.Token == nil {
+			return nil, errors.New("no auth configured. Must specify either auth or github with token value")
+		}
+		key, err := util.ResolveSecretValue(*gitConfig.GitHub.Token)
+		if err != nil {
+			return nil, err
+		}
+		bashAuth := &http.BasicAuth{
+			Username: "x-access-token",
+			Password: key,
+		}
+		return bashAuth, nil
+	}
+
 	// Return nil if no auth configured
 	if gitConfig.Auth.Type == nil {
 		return nil, nil

@@ -38,6 +38,7 @@ var resourceFiles embed.FS
 
 var (
 	loopInterval         int
+	wholeFileArg         string
 	platformFileArg      string
 	teamsFileArg         string
 	organizationsFileArg string
@@ -73,15 +74,14 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	applyCmd.Flags().StringVar(&platformFileArg, "platform", "", "Path to the platform configuration file")
-	applyCmd.Flags().StringVar(&teamsFileArg, "teams", "", "Path to the teams configuration file")
-	applyCmd.Flags().StringVar(&organizationsFileArg, "orgs", "", "Path to the organizations configuration file")
+	applyCmd.Flags().StringVar(&wholeFileArg, "file", "", "Path to the configuration file. This is a convenience flag to apply the whole configuration in one file")
+	applyCmd.Flags().StringVar(&platformFileArg, "platform", "", "Path to the platform configuration file. Superseded by --file")
+	applyCmd.Flags().StringVar(&teamsFileArg, "teams", "", "Path to the teams configuration file. Superseded by --file")
+	applyCmd.Flags().StringVar(&organizationsFileArg, "orgs", "", "Path to the organizations configuration file. Superseded by --file")
 	applyCmd.Flags().IntVarP(&loopInterval,
 		"loop", "l", 0, "Run in a loop with specified interval in seconds (0 = run once)")
 
-	_ = applyCmd.MarkFlagRequired("platform")
-	_ = applyCmd.MarkFlagRequired("teams")
-	_ = applyCmd.MarkFlagRequired("orgs")
+	applyCmd.MarkFlagsOneRequired("file", "platform")
 
 	cobra.OnInitialize(initConfig)
 
@@ -136,7 +136,11 @@ func applyService(
 	svcGitCfg := serviceConfig.Git
 	if svcGitCfg.Auth == nil {
 		// If the user doesn't provide a service level git auth config, we use the platform level git auth
-		svcGitCfg.Auth = platformGit.Auth
+		if platformGit.Auth == nil {
+			svcGitCfg.GitHub = platformGit.GitHub
+		} else {
+			svcGitCfg.Auth = platformGit.Auth
+		}
 	}
 
 	// This loads the Service Spec from the teams Git Repository
@@ -232,9 +236,8 @@ func applyService(
 	if len(services) == 1 {
 		serviceID = *services[0].GetID()
 	} else {
-		fmt.Printf("!!!Found %d serivces for API %s. Cannot create API implementation relation, "+
-			"requires exactly 1 service with `ko-api-name` tag.\n", len(services), *apiName)
-		return nil
+		fmt.Printf("Warn: Found %d serivces for API %s. Cannot create API implementation relation, "+
+			"requires exactly 1 service with `ko-api-name` tag. APIOps workflows may need to be ran.\n", len(services), *apiName)
 	}
 
 	_, err = portal.ApplyAPIConfig(
@@ -751,53 +754,90 @@ func applyPlatformRepo(gitCfg *manifest.GitConfig) error {
 
 func runApply(_ *cobra.Command, _ []string) error {
 	applyOnce := func() error {
-		platformFilePath, err := filepath.Abs(platformFileArg)
-		if err != nil {
-			return fmt.Errorf("failed to resolve platform file path: %w", err)
-		}
-		if _, err := os.Stat(platformFilePath); err != nil {
-			return fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
-		}
-		teamsFilePath, err := filepath.Abs(teamsFileArg)
-		if err != nil {
-			return fmt.Errorf("failed to resolve teams file path: %w", err)
-		}
-		if _, err := os.Stat(teamsFilePath); err != nil {
-			return fmt.Errorf("failed to access file %s: %w", teamsFilePath, err)
-		}
-		organizationsFilePath, err := filepath.Abs(organizationsFileArg)
-		if err != nil {
-			return fmt.Errorf("failed to resolve organizations file path: %w", err)
-		}
-		if _, err := os.Stat(organizationsFilePath); err != nil {
-			return fmt.Errorf("failed to access file %s: %w", organizationsFilePath, err)
+		var wholeFilePath, platformFilePath, teamsFilePath, organizationsFilePath string
+		if wholeFileArg != "" {
+			var err error
+			wholeFilePath, err = filepath.Abs(wholeFileArg)
+			if err != nil {
+				return fmt.Errorf("failed to resolve whole file path: %w", err)
+			}
+			if _, err := os.Stat(wholeFilePath); err != nil {
+				return fmt.Errorf("failed to access file %s: %w", wholeFilePath, err)
+			}
+		} else {
+			var err error
+			platformFilePath, err := filepath.Abs(platformFileArg)
+			if err != nil {
+				return fmt.Errorf("failed to resolve platform file path: %w", err)
+			}
+			if _, err := os.Stat(platformFilePath); err != nil {
+				return fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
+			}
+
+			var teamsFilePath string
+			if teamsFileArg != "" {
+				teamsFilePath, err = filepath.Abs(teamsFileArg)
+				if err != nil {
+					return fmt.Errorf("failed to resolve teams file path: %w", err)
+				}
+				if _, err := os.Stat(teamsFilePath); err != nil {
+					return fmt.Errorf("failed to access file %s: %w", teamsFilePath, err)
+				}
+			}
+
+			var organizationsFilePath string
+			if organizationsFileArg != "" {
+				organizationsFilePath, err = filepath.Abs(organizationsFileArg)
+				if err != nil {
+					return fmt.Errorf("failed to resolve organizations file path: %w", err)
+				}
+				if _, err := os.Stat(organizationsFilePath); err != nil {
+					return fmt.Errorf("failed to access file %s: %w", organizationsFilePath, err)
+				}
+			}
 		}
 
-		var manifest manifest.Orchestrator
-		if err := readConfigSection(platformFilePath, &manifest.Platform); err != nil {
-			return fmt.Errorf("failed to read platform configuration: %w", err)
-		}
-		if err := readConfigSection(teamsFilePath, &manifest.Teams); err != nil {
-			return fmt.Errorf("failed to read teams configuration: %w", err)
-		}
-		if err := readConfigSection(organizationsFilePath, &manifest.Organizations); err != nil {
-			return fmt.Errorf("failed to read organizations configuration: %w", err)
+		var man manifest.Orchestrator
+
+		if wholeFilePath != "" {
+			if err := readConfigSection(wholeFilePath, &man); err != nil {
+				return fmt.Errorf("failed to read whole configuration: %w", err)
+			}
+		} else {
+			if err := readConfigSection(platformFilePath, &man); err != nil {
+				return fmt.Errorf("failed to read platform configuration: %w", err)
+			}
+
+			if teamsFilePath != "" {
+				if err := readConfigSection(teamsFilePath, &man); err != nil {
+					return fmt.Errorf("failed to read teams configuration: %w", err)
+				}
+			} else {
+				man.Teams = make(map[string]*manifest.Team)
+			}
+
+			if organizationsFilePath != "" {
+				if err := readConfigSection(organizationsFilePath, &man); err != nil {
+					return fmt.Errorf("failed to read organizations configuration: %w", err)
+				}
+			} else {
+				man.Organizations = make(map[string]*manifest.Organization)
+			}
 		}
 
-		err = applyPlatformRepo(manifest.Platform.Git)
+		err := applyPlatformRepo(man.Platform.Git)
 		if err != nil {
 			return fmt.Errorf("failed to apply platform repository changes: %w", err)
 		}
 
 		// Process each organization
-		for orgName, orgConfig := range manifest.Organizations {
-			if err := applyOrganization(orgName, *manifest.Platform.Git, *orgConfig, manifest.Teams); err != nil {
+		for orgName, orgConfig := range man.Organizations {
+			if err := applyOrganization(orgName, *man.Platform.Git, *orgConfig, man.Teams); err != nil {
 				return err
 			}
 		}
 
-		fmt.Printf("Successfully applied configuration from:\n  - %s\n  - %s\n  - %s\n",
-			platformFileArg, teamsFileArg, organizationsFileArg)
+		fmt.Println("Configuration Applied")
 
 		return nil
 	}
