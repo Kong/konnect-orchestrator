@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -45,6 +47,7 @@ var (
 	version              = "dev"
 	commit               = "unknown"
 	date                 = "unknown"
+	applyHealth          = "healthy"
 )
 
 var rootCmd = &cobra.Command{
@@ -752,107 +755,177 @@ func applyPlatformRepo(gitCfg *manifest.GitConfig) error {
 	return nil
 }
 
-func runApply(_ *cobra.Command, _ []string) error {
-	applyOnce := func() error {
-		var wholeFilePath, platformFilePath, teamsFilePath, organizationsFilePath string
-		if wholeFileArg != "" {
-			var err error
-			wholeFilePath, err = filepath.Abs(wholeFileArg)
-			if err != nil {
-				return fmt.Errorf("failed to resolve whole file path: %w", err)
-			}
-			if _, err := os.Stat(wholeFilePath); err != nil {
-				return fmt.Errorf("failed to access file %s: %w", wholeFilePath, err)
-			}
-		} else {
-			var err error
-			platformFilePath, err := filepath.Abs(platformFileArg)
-			if err != nil {
-				return fmt.Errorf("failed to resolve platform file path: %w", err)
-			}
-			if _, err := os.Stat(platformFilePath); err != nil {
-				return fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
-			}
-
-			var teamsFilePath string
-			if teamsFileArg != "" {
-				teamsFilePath, err = filepath.Abs(teamsFileArg)
-				if err != nil {
-					return fmt.Errorf("failed to resolve teams file path: %w", err)
-				}
-				if _, err := os.Stat(teamsFilePath); err != nil {
-					return fmt.Errorf("failed to access file %s: %w", teamsFilePath, err)
-				}
-			}
-
-			var organizationsFilePath string
-			if organizationsFileArg != "" {
-				organizationsFilePath, err = filepath.Abs(organizationsFileArg)
-				if err != nil {
-					return fmt.Errorf("failed to resolve organizations file path: %w", err)
-				}
-				if _, err := os.Stat(organizationsFilePath); err != nil {
-					return fmt.Errorf("failed to access file %s: %w", organizationsFilePath, err)
-				}
-			}
-		}
-
-		var man manifest.Orchestrator
-
-		if wholeFilePath != "" {
-			if err := readConfigSection(wholeFilePath, &man); err != nil {
-				return fmt.Errorf("failed to read whole configuration: %w", err)
-			}
-		} else {
-			if err := readConfigSection(platformFilePath, &man); err != nil {
-				return fmt.Errorf("failed to read platform configuration: %w", err)
-			}
-
-			if teamsFilePath != "" {
-				if err := readConfigSection(teamsFilePath, &man); err != nil {
-					return fmt.Errorf("failed to read teams configuration: %w", err)
-				}
-			} else {
-				man.Teams = make(map[string]*manifest.Team)
-			}
-
-			if organizationsFilePath != "" {
-				if err := readConfigSection(organizationsFilePath, &man); err != nil {
-					return fmt.Errorf("failed to read organizations configuration: %w", err)
-				}
-			} else {
-				man.Organizations = make(map[string]*manifest.Organization)
-			}
-		}
-
-		err := applyPlatformRepo(man.Platform.Git)
+func apply() error {
+	var wholeFilePath, platformFilePath, teamsFilePath, organizationsFilePath string
+	if wholeFileArg != "" {
+		var err error
+		wholeFilePath, err = filepath.Abs(wholeFileArg)
 		if err != nil {
-			return fmt.Errorf("failed to apply platform repository changes: %w", err)
+			return fmt.Errorf("failed to resolve whole file path: %w", err)
+		}
+		if _, err := os.Stat(wholeFilePath); err != nil {
+			return fmt.Errorf("failed to access file %s: %w", wholeFilePath, err)
+		}
+	} else {
+		var err error
+		platformFilePath, err := filepath.Abs(platformFileArg)
+		if err != nil {
+			return fmt.Errorf("failed to resolve platform file path: %w", err)
+		}
+		if _, err := os.Stat(platformFilePath); err != nil {
+			return fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
 		}
 
-		// Process each organization
-		for orgName, orgConfig := range man.Organizations {
-			if err := applyOrganization(orgName, *man.Platform.Git, *orgConfig, man.Teams); err != nil {
-				return err
+		var teamsFilePath string
+		if teamsFileArg != "" {
+			teamsFilePath, err = filepath.Abs(teamsFileArg)
+			if err != nil {
+				return fmt.Errorf("failed to resolve teams file path: %w", err)
+			}
+			if _, err := os.Stat(teamsFilePath); err != nil {
+				return fmt.Errorf("failed to access file %s: %w", teamsFilePath, err)
 			}
 		}
 
-		fmt.Println("Configuration Applied")
-
-		return nil
+		var organizationsFilePath string
+		if organizationsFileArg != "" {
+			organizationsFilePath, err = filepath.Abs(organizationsFileArg)
+			if err != nil {
+				return fmt.Errorf("failed to resolve organizations file path: %w", err)
+			}
+			if _, err := os.Stat(organizationsFilePath); err != nil {
+				return fmt.Errorf("failed to access file %s: %w", organizationsFilePath, err)
+			}
+		}
 	}
 
-	if loopInterval == 0 {
-		return applyOnce()
+	var man manifest.Orchestrator
+
+	if wholeFilePath != "" {
+		if err := readConfigSection(wholeFilePath, &man); err != nil {
+			return fmt.Errorf("failed to read whole configuration: %w", err)
+		}
+	} else {
+		if err := readConfigSection(platformFilePath, &man); err != nil {
+			return fmt.Errorf("failed to read platform configuration: %w", err)
+		}
+
+		if teamsFilePath != "" {
+			if err := readConfigSection(teamsFilePath, &man); err != nil {
+				return fmt.Errorf("failed to read teams configuration: %w", err)
+			}
+		} else {
+			man.Teams = make(map[string]*manifest.Team)
+		}
+
+		if organizationsFilePath != "" {
+			if err := readConfigSection(organizationsFilePath, &man); err != nil {
+				return fmt.Errorf("failed to read organizations configuration: %w", err)
+			}
+		} else {
+			man.Organizations = make(map[string]*manifest.Organization)
+		}
 	}
 
-	for {
-		if err := applyOnce(); err != nil {
+	err := applyPlatformRepo(man.Platform.Git)
+	if err != nil {
+		return fmt.Errorf("failed to apply platform repository changes: %w", err)
+	}
+
+	// Process each organization
+	for orgName, orgConfig := range man.Organizations {
+		if err := applyOrganization(orgName, *man.Platform.Git, *orgConfig, man.Teams); err != nil {
 			return err
 		}
-		fmt.Printf("--- Waiting %d seconds before next control loop \n", loopInterval)
+	}
+
+	fmt.Println("Configuration Applied")
+
+	return nil
+}
+
+func runApply(_ *cobra.Command, _ []string) error {
+	// We're not looping, run once and exit
+	if loopInterval == 0 {
+		return apply()
+	}
+
+	// We're looping, start the server and goroutine for regular applys
+	go loopApply()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", healthCheckHandler)
+
+	// Start the web server
+	port := 8080
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", port),
+		Handler: mux,
+	}
+
+	log.Printf("Starting server on :%d", port)
+	if err := server.ListenAndServe(); err != nil {
+		return fmt.Errorf("server error: %v", err)
+	}
+	return nil
+}
+
+// startBackgroundProcess runs applyOnce in a loop at the specified interval
+func loopApply() {
+	// Recover from panics in the goroutine
+	defer func() {
+		if r := recover(); r != nil {
+			message := "Recovered from panic in background process: %v"
+			log.Printf(message, r)
+			applyHealth = fmt.Sprintf(message, r)
+			// Restart the background process after a short delay
+			time.Sleep(5 * time.Second)
+			go loopApply() // Restart the process
+		}
+	}()
+
+	// Main processing loop
+	for {
+		if err := apply(); err != nil {
+			message := "Error in apply process: %v"
+			log.Printf(message, err)
+			applyHealth = fmt.Sprintf(message, err)
+
+			// Add backoff for errors to prevent thrashing
+			time.Sleep(5 * time.Second)
+		} else {
+			//log.Printf("Successfully ran apply process")
+		}
+
+		// fmt.Printf("--- Waiting %d seconds before next control loop\n", loopInterval)
 		time.Sleep(time.Duration(loopInterval) * time.Second)
 	}
+}
+
+// Health check endpoint
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	response := struct {
+		ServerHealth string    `json:"serverStatus"`
+		ApplyHealth  string    `json:"applyStatus"`
+		Timestamp    time.Time `json:"timestamp"`
+		Version      string    `json:"version"`
+		Commit       string    `json:"commit"`
+		Date         string    `json:"date"`
+	}{
+		ServerHealth: "healthy",
+		ApplyHealth:  applyHealth,
+		Timestamp:    time.Now(),
+		Version:      version,
+		Commit:       commit,
+		Date:         date,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func Execute() error {
