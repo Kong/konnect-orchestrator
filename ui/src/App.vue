@@ -2,13 +2,26 @@
   <div class="app">
     <header class="app-header">
       <div class="header-content">
-        <router-link to="/" class="logo">
-          GitHub Explorer
-        </router-link>
+        <div class="header-left">
+          <router-link to="/" class="logo">
+            GitHub Explorer
+          </router-link>
+          
+          <nav v-if="authStore.isAuthenticated" class="nav">
+            <router-link to="/dashboard" class="nav-link">Dashboard</router-link>
+          </nav>
+        </div>
         
-        <nav v-if="authStore.isAuthenticated" class="nav">
-          <router-link to="/dashboard" class="nav-link">Dashboard</router-link>
-        </nav>
+        <div v-if="authStore.isAuthenticated" class="header-right">
+          <!-- Organization Dropdown -->
+          <OrgDropdown v-if="authStore.isAuthenticated" class="header-org-dropdown" />
+          
+          <!-- User Profile Mini -->
+          <div class="user-mini" v-if="authStore.isAuthenticated && authStore.user">
+            <span class="user-name">{{ authStore.user.name || authStore.user.login }}</span>
+            <img :src="authStore.avatar" alt="User avatar" class="avatar-mini" />
+          </div>
+        </div>
       </div>
     </header>
     
@@ -27,6 +40,7 @@
 <script setup>
 import { computed, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import OrgDropdown from '@/components/OrgDropdown.vue';
 
 const authStore = useAuthStore();
 
@@ -77,11 +91,23 @@ body {
   padding: 0 2rem;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
 .logo {
   font-size: 1.25rem;
   font-weight: 600;
   color: white;
   text-decoration: none;
+  margin-right: 2rem;
 }
 
 .nav {
@@ -99,6 +125,54 @@ body {
 .nav-link:hover,
 .nav-link.router-link-active {
   color: white;
+}
+
+/* User mini profile in header */
+.user-mini {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+.avatar-mini {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Header org dropdown styles */
+.header-org-dropdown {
+  margin: 0;
+  max-width: none;
+}
+
+.header-org-dropdown :deep(label) {
+  display: none;
+}
+
+.header-org-dropdown :deep(select) {
+  background-color: #2c3137;
+  color: white;
+  border-color: #444;
+  padding: 6px 28px 6px 10px;
+  font-size: 0.9rem;
+}
+
+.header-org-dropdown :deep(.select-container) {
+  min-width: 200px;
+}
+
+.header-org-dropdown :deep(.error-message),
+.header-org-dropdown :deep(.empty-message),
+.header-org-dropdown :deep(.org-info) {
+  display: none;
 }
 
 /* Main content styles */

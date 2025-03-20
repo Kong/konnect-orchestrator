@@ -63,7 +63,7 @@ apiClient.interceptors.response.use(
 );
 
 // API methods
-export default {
+const api = {
   // Auth endpoints
   auth: {
     // Get GitHub login URL
@@ -124,6 +124,28 @@ export default {
     // Get repository content
     getRepoContent(owner, repo, path = '', ref = '') {
       return apiClient.get(`/api/repos/${owner}/${repo}/contents/${path}${ref ? `?ref=${ref}` : ''}`);
+    },
+    
+    // Get pull requests for a repository
+    getPullRequests(state = 'all') {
+      return apiClient.get(`/api/platform/pulls`, {
+        params: { state }
+      });
+    }
+  },
+  
+  // Services endpoints
+  services: {
+    // Get all services
+    getServices() {
+      return apiClient.get('/api/services');
+    },
+    
+    // Get a specific service by name
+    getService(name) {
+      return apiClient.get(`/api/services/${name}`);
     }
   }
 };
+
+export default api;

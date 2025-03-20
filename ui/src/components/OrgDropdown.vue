@@ -30,19 +30,6 @@
     <div v-if="!githubStore.loading && githubStore.organizations.length === 0" class="empty-message">
       No organizations found
     </div>
-    
-    <!-- Display current organization info if applicable -->
-    <div v-if="githubStore.currentOrg && !githubStore.isPersonalAccount" class="org-info">
-      <div class="org-header">
-        <img 
-          v-if="githubStore.currentOrg.avatar_url" 
-          :src="githubStore.currentOrg.avatar_url" 
-          :alt="githubStore.currentOrg.name || githubStore.currentOrg.login" 
-          class="org-avatar"
-        />
-        <div class="org-name">{{ githubStore.currentOrg.name || githubStore.currentOrg.login }}</div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -167,30 +154,6 @@ select:disabled {
   margin-top: 0.5rem;
   font-style: italic;
   font-size: 14px;
-}
-
-.org-info {
-  margin-top: 1rem;
-  padding: 0.5rem;
-  border: 1px solid #e1e4e8;
-  border-radius: 6px;
-  background-color: #f6f8fa;
-}
-
-.org-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.org-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-}
-
-.org-name {
-  font-weight: 600;
 }
 
 @keyframes spin {

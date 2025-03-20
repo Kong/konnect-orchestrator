@@ -12,6 +12,7 @@ export const useGithubStore = defineStore('github', () => {
   // State
   const repositories = ref([]);
   const organizations = ref([]);
+  const pullRequests = ref([]);
   const selectedOrg = ref(null);
   const selectedRepo = ref(null);
   const loading = ref(false);
@@ -120,6 +121,22 @@ export const useGithubStore = defineStore('github', () => {
     }
   }
   
+  async function fetchPullRequests() {
+   
+    loading.value = true;
+    error.value = null;
+    
+    try {
+      const response = await api.repos.getPullRequests();
+      pullRequests.value = response.data.pull_requests || [];
+    } catch (err) {
+      error.value = err.response?.data?.error || 'Failed to load pull requests';
+      pullRequests.value = [];
+    } finally {
+      loading.value = false;
+    }
+  }
+  
   function selectOrganization(orgLogin) {
     selectedOrg.value = orgLogin;
     selectedRepo.value = null;
@@ -158,6 +175,7 @@ export const useGithubStore = defineStore('github', () => {
   function reset() {
     repositories.value = [];
     organizations.value = [];
+    pullRequests.value = [];
     selectedOrg.value = null;
     selectedRepo.value = null;
     error.value = null;
@@ -168,6 +186,7 @@ export const useGithubStore = defineStore('github', () => {
     // State
     repositories,
     organizations,
+    pullRequests,
     selectedOrg,
     selectedRepo,
     loading,
@@ -183,6 +202,7 @@ export const useGithubStore = defineStore('github', () => {
     // Actions
     fetchOrganizations,
     fetchRepositories,
+    fetchPullRequests,
     selectOrganization,
     selectRepository,
     fetchRepoContent,
