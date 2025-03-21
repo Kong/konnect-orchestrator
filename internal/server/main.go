@@ -35,7 +35,7 @@ func RunServer(platformGitConfig manifest.GitConfig, applyHealth chan string, ve
 	userHandler := handlers.NewUserHandler(githubService)
 	repoHandler := handlers.NewRepoHandler(githubService)
 	orgHandler := handlers.NewOrgHandler(githubService)
-	platformHandler := handlers.NewPlatformHandler(githubService)
+	platformHandler := handlers.NewPlatformHandler(githubService, platformGitConfig)
 
 	// Set up middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService)
@@ -145,6 +145,9 @@ func setupRouter(
 		api.GET("/repos/:owner/:repo/contents/*path", repoHandler.GetRepositoryContent)
 		api.GET("/enterprise/:server/orgs", repoHandler.ListEnterpriseOrganizations)
 		api.GET("/platform/pulls", platformHandler.GetRepositoryPullRequests)
+		api.GET("/platform/service", platformHandler.GetExistingServices)
+		api.GET("/platform/service/:serviceName", platformHandler.GetExistingServiceByName)
+		api.POST("/platform/service", platformHandler.AddServiceRepo)
 
 		// Any POST, PUT, DELETE or PATCH requests need CSRF protection
 		apiWrite := api.Group("/")

@@ -18,8 +18,8 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
-// getAuthMethod returns an ssh.AuthMethod based on the git config, or nil if no auth is specified
-func getAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
+// GetAuthMethod returns an ssh.AuthMethod based on the git config, or nil if no auth is specified
+func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 	if gitConfig.Auth == nil {
 		// by default, we can use GitHub auth for git auth which can simplify the configuration required
 		if gitConfig.GitHub == nil || gitConfig.GitHub.Token == nil {
@@ -68,7 +68,7 @@ func getAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 }
 
 func GetRemoteFile(gitConfig manifest.GitConfig, branch, path string) ([]byte, error) {
-	auth, err := getAuthMethod(gitConfig)
+	auth, err := GetAuthMethod(gitConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func GetRemoteFile(gitConfig manifest.GitConfig, branch, path string) ([]byte, e
 
 // CloneInto clones a git repository into the specified directory
 func CloneInto(gitConfig manifest.GitConfig, dir string) error {
-	auth, err := getAuthMethod(gitConfig)
+	auth, err := GetAuthMethod(gitConfig)
 	if err != nil {
 		return err
 	}
@@ -215,7 +215,7 @@ func Push(dir string, gitConfig manifest.GitConfig) error {
 	if err != nil {
 		return err
 	}
-	auth, err := getAuthMethod(gitConfig)
+	auth, err := GetAuthMethod(gitConfig)
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func Push(dir string, gitConfig manifest.GitConfig) error {
 }
 
 func CheckoutBranch(dir string, branch string, gitConfig manifest.GitConfig) error {
-	auth, err := getAuthMethod(gitConfig)
+	auth, err := GetAuthMethod(gitConfig)
 	if err != nil {
 		return err
 	}

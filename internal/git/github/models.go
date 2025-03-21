@@ -36,6 +36,7 @@ type Repository struct {
 	CreatedAt     string `json:"created_at,omitempty"`
 	UpdatedAt     string `json:"updated_at,omitempty"`
 	IsEnterprise  bool   `json:"is_enterprise"`
+	Team          string `json:"team,omitempty"`
 }
 
 // FileContent represents a file content from GitHub

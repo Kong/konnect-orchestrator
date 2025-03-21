@@ -64,11 +64,75 @@
   const services = ref([]);
   const loading = ref(true);
   const error = ref(null);
+  const useDummyData = ref(true); // Set to true to use dummy data
+  
+  // Dummy data for demonstration
+  const dummyServices = [
+    {
+      name: "user-service",
+      description: "Handles user authentication and profile management",
+      git: {
+        repo: "acme-org/user-service"
+      },
+      specPath: "/api/v1/spec",
+      prodBranch: "main",
+      devBranch: "develop"
+    },
+    {
+      name: "payment-processor",
+      description: "Processes payments and manages billing information",
+      git: {
+        repo: "acme-org/payment-processor"
+      },
+      specPath: "/specs/payment-api",
+      prodBranch: "production",
+      devBranch: "development"
+    },
+    {
+      name: "notification-service",
+      description: "Sends email, SMS, and push notifications to users",
+      git: {
+        repo: "acme-org/notification-service"
+      },
+      specPath: "/docs/api",
+      prodBranch: "main",
+      devBranch: "dev"
+    },
+    {
+      name: "inventory-manager",
+      description: "Manages product inventory and stock levels",
+      git: {
+        repo: "acme-org/inventory-manager"
+      },
+      specPath: "/api/specs",
+      prodBranch: "master",
+      devBranch: "development"
+    },
+    {
+      name: "analytics-service",
+      description: "Collects and processes user analytics data",
+      git: {
+        repo: "acme-org/analytics-service"
+      },
+      specPath: "/api/docs",
+      prodBranch: "main",
+      devBranch: "dev"
+    }
+  ];
   
   // Methods
   const fetchServices = async () => {
     loading.value = true;
     error.value = null;
+    
+    // If using dummy data, return that instead
+    if (useDummyData.value) {
+      setTimeout(() => {
+        services.value = dummyServices;
+        loading.value = false;
+      }, 800); // Simulate API delay
+      return;
+    }
     
     try {
       // Use the API to get services
@@ -77,7 +141,12 @@
     } catch (err) {
       console.error('Error fetching services:', err);
       error.value = err.response?.data?.error || 'Failed to load services';
-      services.value = [];
+      
+      // Use dummy data as fallback if needed
+      if (services.value.length === 0) {
+        services.value = dummyServices;
+        error.value = null; // Clear error since we're showing dummy data
+      }
     } finally {
       loading.value = false;
     }

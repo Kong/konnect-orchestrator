@@ -132,18 +132,45 @@ const api = {
         params: { state }
       });
     }
+    
   },
   
   // Services endpoints
   services: {
     // Get all services
     getServices() {
-      return apiClient.get('/api/services');
+      return apiClient.get('/api/platform/service');
     },
     
     // Get a specific service by name
     getService(name) {
-      return apiClient.get(`/api/services/${name}`);
+      return apiClient.get(`/api/platform/service/${name}`);
+    },
+
+    sendServiceRepoInfo(repo, team) {
+      // Create a new object that matches the exact structure expected by the backend
+      const repoData = {
+        id: repo.id,
+        name: repo.name,
+        full_name: repo.full_name,
+        description: repo.description || '',
+        private: repo.private,
+        html_url: repo.html_url,
+        clone_url: repo.clone_url || '',
+        ssh_url: repo.ssh_url || '',
+        owner: {
+          login: repo.owner.login,
+          id: repo.owner.id,
+          avatar_url: repo.owner.avatar_url
+        },
+        default_branch: repo.default_branch || '',
+        created_at: repo.created_at || '',
+        updated_at: repo.updated_at || '',
+        is_enterprise: repo.is_enterprise || false,
+        team: team || ''
+      };
+      
+      return apiClient.post('/api/platform/service', repoData);
     }
   }
 };
