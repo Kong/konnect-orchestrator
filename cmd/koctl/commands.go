@@ -766,7 +766,7 @@ func runApply(_ *cobra.Command, _ []string) error {
 			}
 		} else {
 			var err error
-			platformFilePath, err := filepath.Abs(platformFileArg)
+			platformFilePath, err = filepath.Abs(platformFileArg)
 			if err != nil {
 				return fmt.Errorf("failed to resolve platform file path: %w", err)
 			}
@@ -774,7 +774,6 @@ func runApply(_ *cobra.Command, _ []string) error {
 				return fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
 			}
 
-			var teamsFilePath string
 			if teamsFileArg != "" {
 				teamsFilePath, err = filepath.Abs(teamsFileArg)
 				if err != nil {
@@ -785,7 +784,6 @@ func runApply(_ *cobra.Command, _ []string) error {
 				}
 			}
 
-			var organizationsFilePath string
 			if organizationsFileArg != "" {
 				organizationsFilePath, err = filepath.Abs(organizationsFileArg)
 				if err != nil {

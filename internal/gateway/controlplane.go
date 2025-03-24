@@ -51,11 +51,18 @@ func ApplyControlPlane(
 	}
 
 	if cp == nil {
+		var clusterType components.CreateControlPlaneRequestClusterType
+		if env.Type == "DEV" {
+			clusterType = components.CreateControlPlaneRequestClusterType("CLUSTER_TYPE_SERVERLESS")
+		} else {
+			clusterType = components.CreateControlPlaneRequestClusterType("CLUSTER_TYPE_CONTROL_PLANE")
+		}
+
 		// Create new control plane
 		resp, err := cpSvc.CreateControlPlane(ctx, components.CreateControlPlaneRequest{
 			Name:        cpName,
 			Description: kk.String(fmt.Sprintf("Control plane for team %s in environment %s", teamName, envName)),
-			ClusterType: kk.Pointer(components.CreateControlPlaneRequestClusterType("CLUSTER_TYPE_CONTROL_PLANE")),
+			ClusterType: kk.Pointer(clusterType),
 			Labels:      labels,
 		})
 		if err != nil {
