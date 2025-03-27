@@ -43,24 +43,37 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to, from, next) => {
+  console.log('Navigation guard running', { 
+    to: to.path,
+    from: from.path
+  });
+  
+  // Update document title
   document.title = to.meta.title || 'GitHub Explorer';
   
   const authStore = useAuthStore();
   
-  // Wait for auth to initialize
-  await authStore.init();
-  
-  // Check if route requires authentication
+  // Check if the route requires authentication
   if (to.matched.some(record => record.meta.requiresAuth)) {
+    console.log('Route requires auth, checking authentication state...');
+    console.log('Auth state:', { 
+      initialized: authStore.initialized,
+      isAuthenticated: authStore.isAuthenticated
+    });
+    
+    // If we're not authenticated and trying to access a protected route
     if (!authStore.isAuthenticated) {
+      console.log('Not authenticated, redirecting to home');
       next({
         path: '/',
         query: { redirect: to.fullPath }
       });
     } else {
+      console.log('Authentication verified, proceeding to route');
       next();
     }
   } else {
+    // No auth required, proceed
     next();
   }
 });

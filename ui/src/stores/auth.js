@@ -1,7 +1,7 @@
 // Authentication store using Pinia
 import { defineStore } from 'pinia';
-import { ref, computed, onMounted } from 'vue';
-import api, { setCsrfToken } from '@/services/api';
+import { ref, computed } from 'vue';
+import api, { setCsrfToken as setApiCsrfToken } from '@/services/api';
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -12,7 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Getters (computed)
   const isAuthenticated = computed(() => {
-    return !!user.value && !!localStorage.getItem('auth_token');
+    return !!user.value;
   });
   
   const avatar = computed(() => {
@@ -25,42 +25,49 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Actions
   async function loadUser() {
-    if (!localStorage.getItem('auth_token')) return;
-    
     loading.value = true;
     error.value = null;
     
     try {
+      console.log('Loading user profile...');
       const response = await api.user.getProfile();
+      
+      // If we successfully got the user profile, we're authenticated
       user.value = response.data;
+      
+      // Set initialized flag
       initialized.value = true;
+      
+      console.log('User loaded successfully:', !!user.value);
+      return true;
     } catch (err) {
+      console.error('Failed to load user profile:', err);
       error.value = err.response?.data?.error || 'Failed to load user profile';
-      // If authentication fails, clear the token
+      
+      // Clear user on authentication errors
       if (err.response?.status === 401) {
-        logout();
+        user.value = null;
       }
+      
+      return false;
     } finally {
       loading.value = false;
     }
   }
-  
+
+  function setCsrfToken(token) {
+    // Update the token in the API client
+    setApiCsrfToken(token);
+  }
+
   function initiateLogin() {
     // Redirect to the GitHub login URL
     window.location.href = api.auth.getLoginUrl();
   }
   
-  function handleCallback(token, csrfToken) {
-    // Store the token and load user info
-    if (token) {
-      localStorage.setItem('auth_token', token);
-      
-      // Store CSRF token if provided
-      if (csrfToken) {
-        setCsrfToken(csrfToken);
-      }
-      
-      loadUser();
+  function setSessionCsrfToken(csrfToken) {
+    if (csrfToken) {
+      setCsrfToken(csrfToken);
       return true;
     }
     return false;
@@ -68,32 +75,31 @@ export const useAuthStore = defineStore('auth', () => {
   
   async function logout() {
     try {
-      // Call logout endpoint if authenticated
       if (isAuthenticated.value) {
-        await api.auth.logout();
+        api.auth.logout();
       }
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
-      // Clear local state regardless of API success
       user.value = null;
-      localStorage.removeItem('auth_token');
-      setCsrfToken(''); // Clear CSRF token
+      setCsrfToken('');
     }
   }
   
-  // Initialize auth state
   function init() {
-    if (!initialized.value) {
-      const token = localStorage.getItem('auth_token');
-      if (token && !user.value) {
-        loadUser();
-      } else {
-        initialized.value = true;
+    if (initialized.value) return Promise.resolve();
+    
+    return new Promise(async (resolve) => {
+      try {
+        // Just try to load user - this will use the cookie if present
+        await loadUser();
+      } catch (error) {
+        console.error('Failed to load user during initialization:', error);
       }
-    }
+      initialized.value = true;
+      resolve();
+    });
   }
-  
   // Return state, getters, and actions
   return {
     // State
@@ -109,8 +115,9 @@ export const useAuthStore = defineStore('auth', () => {
     
     // Actions
     loadUser,
+    setCsrfToken,
     initiateLogin,
-    handleCallback,
+    setSessionCsrfToken,
     logout,
     init
   };

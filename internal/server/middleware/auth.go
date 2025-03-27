@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
 	models "github.com/Kong/konnect-orchestrator/internal/git/github"
@@ -24,31 +23,23 @@ func NewAuthMiddleware(authService *services.AuthService) *AuthMiddleware {
 	}
 }
 
-// RequireAuth middleware checks if the user is authenticated
 func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Get authorization header
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		// Get token from cookie instead of Authorization header
+		tokenString, err := c.Cookie("auth_token")
+		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Authorization header required",
-			})
-			return
-		}
-
-		// Check if it's a Bearer token
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Authorization header format must be Bearer {token}",
+				"error": "Not authenticated",
 			})
 			return
 		}
 
 		// Validate the token
-		tokenString := parts[1]
 		claims, err := m.authService.ValidateToken(tokenString)
 		if err != nil {
+			// Clear the invalid cookie
+			c.SetCookie("auth_token", "", -1, "/", "", c.Request.TLS != nil, true)
+
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid or expired token",
 			})
@@ -90,8 +81,16 @@ func (m *AuthMiddleware) RefreshToken() gin.HandlerFunc {
 				claims.GitHubToken,
 			)
 			if err == nil {
-				// Set the new token in the response header
-				c.Header("X-Refresh-Token", newToken)
+				// Set the new token in a cookie
+				c.SetCookie(
+					"auth_token",
+					newToken,
+					int(24*time.Hour.Seconds()),
+					"/",
+					"",
+					c.Request.TLS != nil,
+					true,
+				)
 			}
 		}
 	}

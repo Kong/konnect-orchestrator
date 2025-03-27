@@ -123,7 +123,7 @@ func setupRouter(
 	{
 		auth.GET("/github", authHandler.Login)
 		auth.GET("/github/callback", authHandler.Callback)
-		auth.GET("/success", authHandler.Success)
+		auth.GET("/verify", authHandler.VerifyCode) // Add this new route
 		auth.POST("/logout", csrfProtected(), authHandler.Logout)
 		auth.POST("/refresh", csrfProtected(), authMiddleware.RequireAuth(), authHandler.RefreshToken)
 	}

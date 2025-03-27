@@ -4,7 +4,7 @@ import axios from 'axios';
 // Create axios instance with base URL from env
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
-  withCredentials: true,
+  withCredentials: true, 
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -71,6 +71,10 @@ const api = {
       return `${apiClient.defaults.baseURL}/auth/github`;
     },
     
+    verifyCode(code) {
+      return apiClient.get('/auth/verify', { params: { code } });
+    },
+
     // Exchange code for token (if implementing client-side)
     // This is typically handled by the server-side callback
     exchangeToken(code) {

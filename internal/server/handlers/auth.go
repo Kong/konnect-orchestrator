@@ -9,6 +9,7 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/config"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	cache "github.com/patrickmn/go-cache"
 
 	gh "github.com/Kong/konnect-orchestrator/internal/git/github"
 )
@@ -16,15 +17,17 @@ import (
 // NewAuthHandler creates a new AuthHandler
 func NewAuthHandler(authService *gh.AuthService, config *config.Config) *AuthHandler {
 	return &AuthHandler{
-		authService: authService,
-		config:      config,
+		authService:   authService,
+		config:        config,
+		tempCodeCache: cache.New(5*time.Minute, 10*time.Minute),
 	}
 }
 
 // And update the struct to include the config
 type AuthHandler struct {
-	authService *gh.AuthService
-	config      *config.Config
+	authService   *gh.AuthService
+	config        *config.Config
+	tempCodeCache *cache.Cache
 }
 
 // Login initiates the GitHub OAuth flow
@@ -112,15 +115,36 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// Set the token in a cookie for web clients
-	c.SetCookie("auth_token", jwtToken, int(24*time.Hour.Seconds()), "/", "", true, true)
+	// Set the token in a secure HttpOnly cookie
+	c.SetCookie(
+		"auth_token",                // Name
+		jwtToken,                    // Value
+		int(24*time.Hour.Seconds()), // Max age (24 hours)
+		"/",                         // Path
+		"",                          // Domain (empty = default domain)
+		c.Request.TLS != nil,        // Secure (true for HTTPS)
+		true,                        // HttpOnly
+	)
 	c.SetSameSite(http.SameSiteStrictMode)
 
-	// Get the frontend URL from config (you'll need to add this to your config)
-	frontendURL := h.config.FrontendURL // Add this to your config structure
+	// Generate a temporary code to pass to the frontend
+	tempCode := generateRandomString(32)
 
-	// Redirect to the Vue.js frontend's callback route with the token
-	c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/auth/success?token="+jwtToken)
+	// Store the temp code in the cache with short expiration
+	h.tempCodeCache.Set(tempCode, true, 2*time.Minute)
+
+	// Redirect to the frontend callback with the temporary code
+	frontendURL := h.config.FrontendURL
+	c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/auth/success?code="+tempCode)
+}
+
+// Add a helper function to generate random strings
+func generateRandomString(length int) string {
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return ""
+	}
+	return base64.URLEncoding.EncodeToString(b)[:length]
 }
 
 // Success handles the successful authentication
@@ -156,10 +180,59 @@ func (h *AuthHandler) Success(c *gin.Context) {
 	})
 }
 
-// Logout handles the logout request
+func (h *AuthHandler) VerifyCode(c *gin.Context) {
+	code := c.Query("code")
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing code parameter",
+		})
+		return
+	}
+
+	// Verify the code exists in our cache
+	if _, found := h.tempCodeCache.Get(code); !found {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid or expired code",
+		})
+		return
+	}
+
+	// Delete the code to prevent reuse
+	h.tempCodeCache.Delete(code)
+
+	// Generate a CSRF token
+	csrfToken, err := generateRandomToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to generate CSRF token",
+		})
+		return
+	}
+
+	// Store the CSRF token in session
+	session := sessions.Default(c)
+	session.Set("csrf_token", csrfToken)
+	session.Save()
+
+	// Return success and the CSRF token
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"message":    "Authentication successful",
+		"csrf_token": csrfToken,
+	})
+}
+
 func (h *AuthHandler) Logout(c *gin.Context) {
 	// Clear the auth token cookie
-	c.SetCookie("auth_token", "", -1, "/", "", true, true)
+	c.SetCookie(
+		"auth_token",         // Name
+		"",                   // Value
+		-1,                   // Max age (negative = delete immediately)
+		"/",                  // Path
+		"",                   // Domain
+		c.Request.TLS != nil, // Secure (true for HTTPS)
+		true,                 // HttpOnly
+	)
 
 	// Clear the session
 	session := sessions.Default(c)

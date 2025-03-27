@@ -49,8 +49,17 @@ const checkAuth = () => {
   }
 };
 
-onMounted(() => {
-  checkAuth();
+onMounted(async () => {
+  // Try to load user data if we haven't already
+  if (!authStore.user && !authStore.loading) {
+    await authStore.loadUser();
+  }
+  
+  // Check authentication status after loading
+  if (authStore.isAuthenticated) {
+    console.log('Already authenticated, redirecting to dashboard');
+    router.push('/dashboard');
+  }
 });
 
 // Watch for authentication state changes

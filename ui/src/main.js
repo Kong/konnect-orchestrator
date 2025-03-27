@@ -13,7 +13,7 @@ const app = createApp(App);
 // Use plugins
 app.use(pinia);
 app.use(router);
-app.use(authPlugin); // Add the auth plugin here
+app.use(authPlugin); // Add this line
 
 // Mount app
 app.mount('#app');
