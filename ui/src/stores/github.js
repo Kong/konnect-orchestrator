@@ -1,6 +1,6 @@
 // src/stores/github.js
 import { defineStore } from 'pinia';
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import api from '@/services/api';
 import { useAuthStore } from '@/stores/auth';
 import DOMPurify from 'dompurify';
@@ -18,8 +18,8 @@ export const useGithubStore = defineStore('github', () => {
 
   // State
   const availableTeams = ref([]);
-  const organizations = ref([]);
   const repositories = ref([]);
+  const organizations = ref([]);
   const pullRequests = ref([]);
   const selectedOrg = ref(null);
   const selectedRepo = ref(null);
@@ -31,16 +31,38 @@ export const useGithubStore = defineStore('github', () => {
   );
   const error = ref(null);
 
-  // Watch for errors from all requests
-  watch([
-    organizationsRequest.error, 
-    repositoriesRequest.error, 
-    pullRequestsRequest.error,
-    repoContentRequest.error
-  ], ([orgError, repoError, pullError, contentError]) => {
-    // Set the first non-null error
-    error.value = orgError || repoError || pullError || contentError;
+  // Add cache timestamp tracking
+  const lastFetchTime = ref({
+    organizations: null,
+    repositories: null,
+    pullRequests: null,
+    repoContent: {}  // Will store path-specific timestamps
   });
+  
+  // Cache duration (5 minutes)
+  const CACHE_DURATION = 5 * 60 * 1000;
+
+  // Cache validation helper
+  const isCacheValid = (cacheKey) => {
+    return lastFetchTime.value[cacheKey] && 
+           (Date.now() - lastFetchTime.value[cacheKey] < CACHE_DURATION);
+  };
+
+  // Force refresh helper (for when we need to bypass cache)
+  const invalidateCache = (cacheKey) => {
+    if (cacheKey) {
+      lastFetchTime.value[cacheKey] = null;
+    } else {
+      // Invalidate all caches
+      Object.keys(lastFetchTime.value).forEach(key => {
+        if (typeof lastFetchTime.value[key] === 'object') {
+          lastFetchTime.value[key] = {};
+        } else {
+          lastFetchTime.value[key] = null;
+        }
+      });
+    }
+  };
 
   // Getters remain the same
   const orgOptions = computed(() => {
@@ -79,14 +101,23 @@ export const useGithubStore = defineStore('github', () => {
     return currentOrg.value.isPersonal === true;
   });
 
-  // Actions - refactored to use the composable
-  async function fetchOrganizations() {
+  // Actions - updated with caching
+  async function fetchOrganizations(forceRefresh = false) {
+    // Skip if data is fresh and not forcing refresh
+    if (!forceRefresh && organizations.value.length > 0 && isCacheValid('organizations')) {
+      console.log('Using cached organizations data');
+      return organizations.value;
+    }
+    
     // Execute the API request
     const response = await organizationsRequest.execute(
       () => api.orgs.getUserOrgs(),
       'Failed to load organizations',
       { organizations: [] }
     );
+    
+    // Update cache timestamp
+    lastFetchTime.value.organizations = Date.now();
     
     // Process the response
     organizations.value = response.organizations || [];
@@ -112,15 +143,33 @@ export const useGithubStore = defineStore('github', () => {
       selectedOrg.value = organizations.value[0].login;
       await fetchRepositories();
     }
+    
+    return organizations.value;
   }
 
   function setAvailableTeams(teams) {
     availableTeams.value = teams;
   }
 
-  async function fetchRepositories() {
+  async function fetchRepositories(forceRefresh = false) {
+    // Skip if data is fresh and not forcing refresh
+    // Only use cache if we're fetching the same org
+    if (
+      !forceRefresh && 
+      repositories.value.length > 0 && 
+      isCacheValid('repositories') &&
+      // The following ensures we're not using cached repos from a different org
+      lastFetchedOrg.value === selectedOrg.value
+    ) {
+      console.log('Using cached repositories data');
+      return repositories.value;
+    }
+    
     // Reset selected repo before loading new repos
     selectedRepo.value = null;
+    
+    // Track which org these repos belong to (for cache validation)
+    lastFetchedOrg.value = selectedOrg.value;
     
     // Determine which API endpoint to use based on selection
     const orgData = organizations.value.find(org => org.login === selectedOrg.value);
@@ -144,22 +193,44 @@ export const useGithubStore = defineStore('github', () => {
       { repositories: [] }
     );
     
+    // Update cache timestamp
+    lastFetchTime.value.repositories = Date.now();
+    
     repositories.value = response.repositories || [];
+    
+    return repositories.value;
   }
 
-  async function fetchPullRequests() {
+  async function fetchPullRequests(forceRefresh = false) {
+    // Skip if data is fresh and not forcing refresh
+    if (!forceRefresh && pullRequests.value.length > 0 && isCacheValid('pullRequests')) {
+      console.log('Using cached pull requests data');
+      return pullRequests.value;
+    }
+    
     const response = await pullRequestsRequest.execute(
       () => api.repos.getPullRequests(),
       'Failed to load pull requests',
       { pull_requests: [] }
     );
     
+    // Update cache timestamp
+    lastFetchTime.value.pullRequests = Date.now();
+    
     pullRequests.value = response.pull_requests || [];
+    
+    return pullRequests.value;
   }
 
   function selectOrganization(orgLogin) {
+    if (selectedOrg.value === orgLogin) {
+      return; // No change needed
+    }
+    
     selectedOrg.value = orgLogin;
     selectedRepo.value = null;
+    
+    // We changed org, so fetch repositories
     fetchRepositories();
   }
 
@@ -172,21 +243,50 @@ export const useGithubStore = defineStore('github', () => {
 
     const [owner, repo] = currentRepo.value.full_name.split('/');
     
+    // Create a cache key for this specific content
+    const cacheKey = `${owner}/${repo}/${path}/${ref}`;
+    
+    // Skip if data is fresh for this path
+    if (
+      lastFetchTime.value.repoContent[cacheKey] &&
+      (Date.now() - lastFetchTime.value.repoContent[cacheKey] < CACHE_DURATION)
+    ) {
+      console.log(`Using cached repository content for: ${cacheKey}`);
+      if (repoContentCache.value[cacheKey]) {
+        return repoContentCache.value[cacheKey];
+      }
+    }
+    
     const response = await repoContentRequest.execute(
       () => api.repos.getRepoContent(owner, repo, path, ref),
       'Failed to load repository content',
       null
     );
 
-    // Sanitize content if it's text
-    if (response && response.content && response.type === 'file') {
-      response.content = DOMPurify.sanitize(response.content);
+    // Update cache timestamp for this path
+    lastFetchTime.value.repoContent[cacheKey] = Date.now();
+    
+    // Store response in path-specific cache
+    if (response) {
+      // Sanitize content if it's text
+      if (response.content && response.type === 'file') {
+        response.content = DOMPurify.sanitize(response.content);
+      }
+      
+      // Store in cache
+      repoContentCache.value[cacheKey] = response;
     }
 
     return response;
   }
 
-  // Reset store state
+  // Add a content cache
+  const repoContentCache = ref({});
+  
+  // Track the last org we fetched repos for
+  const lastFetchedOrg = ref(null);
+
+  // Reset store state with cache invalidation
   function reset() {
     repositories.value = [];
     organizations.value = [];
@@ -194,6 +294,9 @@ export const useGithubStore = defineStore('github', () => {
     selectedOrg.value = null;
     selectedRepo.value = null;
     error.value = null;
+    
+    // Reset all caches
+    invalidateCache();
   }
 
   // Return state, getters, and actions
@@ -224,6 +327,9 @@ export const useGithubStore = defineStore('github', () => {
     selectRepository,
     fetchRepoContent,
     setAvailableTeams,
-    reset
+    reset,
+    
+    // Cache management
+    invalidateCache
   };
 });

@@ -48,9 +48,10 @@ const authStore = useAuthStore();
 // State
 const selectedValue = ref('');
 
-const loadOrganizations = async () => {
+const loadOrganizations = async (forceRefresh = false) => {
   if (authStore.isAuthenticated) {
-    await githubStore.fetchOrganizations();
+    // Pass forceRefresh to use cache when appropriate
+    await githubStore.fetchOrganizations(forceRefresh);
     
     // The selectedValue should reflect what's in the store
     if (githubStore.selectedOrg) {
@@ -80,6 +81,13 @@ watch(() => githubStore.selectedOrg, (newOrg) => {
     selectedValue.value = newOrg || '';
   }
 });
+
+// Add a refresh method that can be called from parent
+const refreshOrganizations = () => {
+  return loadOrganizations(true); // Force refresh
+};
+
+defineExpose({ refreshOrganizations });
 
 // Load organizations on component mount
 onMounted(() => {

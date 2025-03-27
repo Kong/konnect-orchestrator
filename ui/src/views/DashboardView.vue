@@ -165,7 +165,6 @@ const toggleEditDevBranch = () => {
   editingDevBranch.value = !editingDevBranch.value;
 };
 
-// Find the existing sendServiceRepoInfo function and replace its contents
 const sendServiceRepoInfo = async () => {
   if (!githubStore.currentRepo || !isFormValid.value) return;
 
@@ -196,6 +195,16 @@ const sendServiceRepoInfo = async () => {
 
     // Refresh services list
     servicesPanel.value.fetchServices();
+    
+    // Invalidate pull requests cache since new PRs may have been created
+    githubStore.invalidateCache('pullRequests');
+    
+    // Optionally, refresh pull requests in the background
+    // This preloads the data for when the user views PRs next
+    githubStore.fetchPullRequests(true).catch(err => {
+      console.error('Background PR refresh failed:', err);
+      // We don't show this error to the user since it's a background operation
+    });
   }
 };
 

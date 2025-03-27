@@ -83,19 +83,16 @@ import { useGithubStore } from '@/stores/github';
 import { useApiRequest } from '@/composables/useApiRequest';
 
 // State
+// First define all state variables and composables
 const services = ref([]);
 const teams = ref([]);
 const selectedTeam = ref('');
 const githubStore = useGithubStore();
-
-// Create API request composable
 const { loading, error, execute } = useApiRequest();
+const lastFetchTime = ref(null);
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-// Export teams for other components to use
-const getTeams = () => teams.value;
-defineExpose({ getTeams });
-
-// Filtered services based on selected team
+// Define computed properties
 const filteredServices = computed(() => {
   if (!selectedTeam.value) {
     return services.value;
@@ -103,14 +100,30 @@ const filteredServices = computed(() => {
   return services.value.filter(service => service.team === selectedTeam.value);
 });
 
-// Methods
-const fetchServices = async () => {
+// Define functions
+const getTeams = () => teams.value;
+
+const fetchServices = async (forceRefresh = false) => {
+  // Skip if data is fresh and not forcing refresh
+  if (
+    !forceRefresh && 
+    services.value.length > 0 && 
+    lastFetchTime.value && 
+    (Date.now() - lastFetchTime.value < CACHE_DURATION)
+  ) {
+    console.log('Using cached services data');
+    return services.value;
+  }
+
   // Execute API request
   const response = await execute(
     () => api.services.getServices(),
     'Failed to load services',
     { services: [] }
   );
+  
+  // Update cache timestamp
+  lastFetchTime.value = Date.now();
   
   services.value = response.services || [];
   
@@ -120,6 +133,8 @@ const fetchServices = async () => {
   
   // Notify the github store of available teams
   githubStore.setAvailableTeams(teams.value);
+  
+  return services.value;
 };
 
 const getRepoUrl = (git) => {
@@ -133,6 +148,9 @@ const getRepoUrl = (git) => {
   // Assume GitHub if no full URL provided
   return `https://github.com/${git.repo}`;
 };
+
+// Now expose functions AFTER they've been defined
+defineExpose({ getTeams, fetchServices });
 
 // Fetch services on component mount
 onMounted(() => {

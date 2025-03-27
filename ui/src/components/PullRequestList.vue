@@ -89,7 +89,6 @@ import { useApiRequest } from '@/composables/useApiRequest';
 const githubStore = useGithubStore();
 
 // Local state for pull requests
-const pullRequests = ref([]);
 const dataLoaded = ref(false); // Track if data has been loaded
 
 // Use API request composable
@@ -98,6 +97,9 @@ const { loading, error, execute } = useApiRequest();
 // Filter state
 const showOpen = ref(true);
 const showClosed = ref(false);
+
+// Get pull requests from the store instead of local state
+const pullRequests = computed(() => githubStore.pullRequests);
 
 // Computed filtered pull requests
 const filteredPullRequests = computed(() => {
@@ -135,13 +137,8 @@ const loadPullRequests = async () => {
   // Only load if not already loaded
   if (dataLoaded.value) return;
   
-  const response = await execute(
-    () => api.repos.getPullRequests(),
-    'Failed to load pull requests',
-    { pull_requests: [] }
-  );
-  
-  pullRequests.value = response.pull_requests || [];
+  // Use the store's method which handles caching
+  await githubStore.fetchPullRequests();
   dataLoaded.value = true; // Mark as loaded
 };
 

@@ -72,6 +72,13 @@ const handleChange = () => {
   emit('change', selectedValue.value);
 };
 
+// Add refresh method
+const refreshRepositories = () => {
+  return githubStore.fetchRepositories(true); // Force refresh
+};
+
+defineExpose({ refreshRepositories });
+
 // Watch for authentication changes
 watch(() => authStore.isAuthenticated, (isAuthenticated) => {
   if (!isAuthenticated) {
