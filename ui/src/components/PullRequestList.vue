@@ -1,134 +1,158 @@
 <template>
-    <div class="pull-requests">
-      <div class="header-container">
-        <h3>Pull Requests</h3>
-        
-        <div class="filter-container">
-          <button 
-            class="filter-pill" 
-            :class="{ active: showOpen, open: showOpen }"
-            @click="toggleFilter('open')"
-          >
-            Open
-          </button>
-          
-          <button 
-            class="filter-pill" 
-            :class="{ active: showClosed, closed: showClosed }"
-            @click="toggleFilter('closed')"
-          >
-            Closed
-          </button>
-        </div>
-      </div>
+  <div class="pull-requests">
+    <div class="header-container">
+      <h3>Pull Requests</h3>
       
-      <div v-if="githubStore.loading" class="loading-container">
-        <div class="spinner"></div>
-        <p>Loading pull requests...</p>
-      </div>
-      
-      <div v-else-if="githubStore.error" class="error-message">
-        {{ githubStore.error }}
-      </div>
-      
-      <div v-else-if="githubStore.pullRequests.length === 0" class="empty-message">
-        No pull requests found in this repository
-      </div>
-      
-      <div v-else-if="filteredPullRequests.length === 0" class="empty-message">
-        No pull requests match the selected filters
-      </div>
-      
-      <div v-else class="pr-list">
-        <div 
-          v-for="pr in filteredPullRequests" 
-          :key="pr.id"
-          class="pr-item"
+      <div class="filter-container">
+        <button 
+          class="filter-pill" 
+          :class="{ active: showOpen, open: showOpen }"
+          @click="toggleFilter('open')"
         >
-          <div class="pr-header">
-            <span class="pr-number">#{{ pr.number }}</span>
-            <span :class="['pr-status', pr.state]">{{ pr.state }}</span>
-          </div>
-          
-          <h4 class="pr-title">{{ pr.title }}</h4>
-          
-          <div class="pr-meta">
-            <div class="pr-author">
-              <img 
-                v-if="pr.user && pr.user.avatar_url" 
-                :src="pr.user.avatar_url" 
-                :alt="pr.user.login" 
-                class="author-avatar"
-              />
-              <span>{{ pr.user ? pr.user.login : 'Unknown' }}</span>
-            </div>
-            <div class="pr-date">
-              <span>Created: {{ formatDate(pr.created_at) }}</span>
-            </div>
-          </div>
-          
-          <a 
-            :href="pr.html_url" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            class="pr-link"
-          >
-            View on GitHub
-          </a>
-        </div>
+          Open
+        </button>
+        
+        <button 
+          class="filter-pill" 
+          :class="{ active: showClosed, closed: showClosed }"
+          @click="toggleFilter('closed')"
+        >
+          Closed
+        </button>
       </div>
     </div>
-  </template>
-  
-  <script setup>
-  import { ref, computed, onMounted } from 'vue';
-  import { useGithubStore } from '@/stores/github';
-  
-  const githubStore = useGithubStore();
-  
-  // Filter state
-  const showOpen = ref(true);
-  const showClosed = ref(false);
-  
-  // Computed filtered pull requests
-  const filteredPullRequests = computed(() => {
-    // If neither filter is selected, don't show any PRs
-    if (!showOpen.value && !showClosed.value) {
-      return [];
-    }
     
-    // Filter PRs based on selected states
-    return githubStore.pullRequests.filter(pr => {
-      if (pr.state === 'open' && showOpen.value) return true;
-      if (pr.state === 'closed' && showClosed.value) return true;
-      return false;
-    });
-  });
-  
-  // Toggle filter method
-  const toggleFilter = (type) => {
-    if (type === 'open') {
-      showOpen.value = !showOpen.value;
-    } else if (type === 'closed') {
-      showClosed.value = !showClosed.value;
-    }
-    console.log(`Filters: Open: ${showOpen.value}, Closed: ${showClosed.value}`);
-  };
-  
-  // Format date helper
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
-  };
+    <div v-if="loading" class="loading-container">
+      <div class="spinner"></div>
+      <p>Loading pull requests...</p>
+    </div>
+    
+    <div v-else-if="error" class="error-message">
+      {{ error }}
+    </div>
+    
+    <div v-else-if="pullRequests.length === 0" class="empty-message">
+      No pull requests found
+    </div>
+    
+    <div v-else-if="filteredPullRequests.length === 0" class="empty-message">
+      No pull requests match the selected filters
+    </div>
+    
+    <div v-else class="pr-list">
+      <div 
+        v-for="pr in filteredPullRequests" 
+        :key="pr.id"
+        class="pr-item"
+      >
+        <div class="pr-header">
+          <span class="pr-number">#{{ pr.number }}</span>
+          <span :class="['pr-status', pr.state]">{{ pr.state }}</span>
+        </div>
+        
+        <h4 class="pr-title">{{ pr.title }}</h4>
+        
+        <div class="pr-meta">
+          <div class="pr-author">
+            <img 
+              v-if="pr.user && pr.user.avatar_url" 
+              :src="pr.user.avatar_url" 
+              :alt="pr.user.login" 
+              class="author-avatar"
+            />
+            <span>{{ pr.user ? pr.user.login : 'Unknown' }}</span>
+          </div>
+          <div class="pr-date">
+            <span>Created: {{ formatDate(pr.created_at) }}</span>
+          </div>
+        </div>
+        
+        <a 
+          :href="pr.html_url" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="pr-link"
+        >
+          View on GitHub
+        </a>
+      </div>
+    </div>
+  </div>
+</template>
 
-  
-  // Fetch pull requests when component mounts if a repo is selected
-  onMounted(() => {
-      githubStore.fetchPullRequests();
-  });
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { useGithubStore } from '@/stores/github';
+import api from '@/services/api';
 
-  </script>
+const githubStore = useGithubStore();
+
+// Local state for pull requests
+const pullRequests = ref([]);
+const loading = ref(false);
+const error = ref(null);
+const dataLoaded = ref(false); // Track if data has been loaded
+
+// Filter state
+const showOpen = ref(true);
+const showClosed = ref(false);
+
+// Computed filtered pull requests
+const filteredPullRequests = computed(() => {
+  // If neither filter is selected, don't show any PRs
+  if (!showOpen.value && !showClosed.value) {
+    return [];
+  }
+  
+  // Filter PRs based on selected states
+  return pullRequests.value.filter(pr => {
+    if (pr.state === 'open' && showOpen.value) return true;
+    if (pr.state === 'closed' && showClosed.value) return true;
+    return false;
+  });
+});
+
+// Toggle filter method
+const toggleFilter = (type) => {
+  if (type === 'open') {
+    showOpen.value = !showOpen.value;
+  } else if (type === 'closed') {
+    showClosed.value = !showClosed.value;
+  }
+};
+
+// Format date helper
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  return date.toLocaleDateString();
+};
+
+// Load pull requests only once
+const loadPullRequests = async () => {
+  // Only load if not already loaded
+  if (dataLoaded.value) return;
+  
+  loading.value = true;
+  error.value = null;
+  
+  try {
+    const response = await api.repos.getPullRequests();
+    pullRequests.value = response.data.pull_requests || [];
+    dataLoaded.value = true; // Mark as loaded
+  } catch (err) {
+    console.error('Error fetching pull requests:', err);
+    error.value = err.response?.data?.error || 'Failed to load pull requests';
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Fetch pull requests when component mounts if not already loaded
+onMounted(() => {
+  loadPullRequests();
+});
+</script>
   
   <style scoped>
   .pull-requests {

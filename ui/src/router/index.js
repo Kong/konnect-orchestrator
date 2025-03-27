@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 import HomeView from '@/views/HomeView.vue';
 import DashboardView from '@/views/DashboardView.vue';
 import CallbackView from '@/views/CallbackView.vue';
@@ -42,15 +43,28 @@ const router = createRouter({
 });
 
 // Navigation guard to check authentication for protected routes
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   // Update document title
   document.title = to.meta.title || 'GitHub Explorer';
+  
+  const authStore = useAuthStore();
+  
+  // Make sure auth is initialized
+  if (!authStore.initialized) {
+    await new Promise(resolve => {
+      const checkInterval = setInterval(() => {
+        if (authStore.initialized) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 50);
+    });
+  }
   
   // Check if route requires authentication
   if (to.matched.some(record => record.meta.requiresAuth)) {
     // Check if user is authenticated
-    const token = localStorage.getItem('auth_token');
-    if (!token) {
+    if (!authStore.isAuthenticated) {
       // Redirect to login page
       next({
         path: '/',

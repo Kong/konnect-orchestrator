@@ -146,7 +146,6 @@ func setupRouter(
 		api.GET("/enterprise/:server/orgs", repoHandler.ListEnterpriseOrganizations)
 		api.GET("/platform/pulls", platformHandler.GetRepositoryPullRequests)
 		api.GET("/platform/service", platformHandler.GetExistingServices)
-		api.GET("/platform/service/:serviceName", platformHandler.GetExistingServiceByName)
 		api.POST("/platform/service", platformHandler.AddServiceRepo)
 
 		// Any POST, PUT, DELETE or PATCH requests need CSRF protection

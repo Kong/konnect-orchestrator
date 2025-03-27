@@ -141,13 +141,8 @@ const api = {
     getServices() {
       return apiClient.get('/api/platform/service');
     },
-    
-    // Get a specific service by name
-    getService(name) {
-      return apiClient.get(`/api/platform/service/${name}`);
-    },
-
-    sendServiceRepoInfo(repo, team) {
+  
+    sendServiceRepoInfo(repo, team, prodBranch = 'prod', devBranch = 'dev') {
       // Create a new object that matches the exact structure expected by the backend
       const repoData = {
         id: repo.id,
@@ -167,7 +162,9 @@ const api = {
         created_at: repo.created_at || '',
         updated_at: repo.updated_at || '',
         is_enterprise: repo.is_enterprise || false,
-        team: team || ''
+        team: team || '',
+        prodBranch: prodBranch,
+        devBranch: devBranch
       };
       
       return apiClient.post('/api/platform/service', repoData);

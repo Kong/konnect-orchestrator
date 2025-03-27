@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -84,97 +85,131 @@ func (h *PlatformHandler) GetRepositoryPullRequests(c *gin.Context) {
 }
 
 func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
-	// Get the GitHub token from the context
-	githubToken, exists := c.Get("github_token")
-	if !exists {
+	auth, err := git.GetAuthMethod(h.platformGitConfig)
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Not authenticated",
+			"error": "Failed to get authentication method: " + err.Error(),
 		})
 		return
 	}
 
-	gitURL, err := giturl.NewGitURL(*h.platformGitConfig.Remote)
+	// Setup in-memory filesystem
+	fs := memfs.New()
+
+	// Clone repository in memory
+	r, err := goGit.Clone(memory.NewStorage(), fs, &goGit.CloneOptions{
+		URL:           *h.platformGitConfig.Remote,
+		SingleBranch:  true,
+		ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", "main")), // Assuming main branch
+		Auth:          auth,
+	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Get path parameters
-	owner := gitURL.GetOwnerName()
-	repo := gitURL.GetRepoName()
-
-	// Get query parameters with defaults
-	state := c.DefaultQuery("state", "all")
-	sort := c.DefaultQuery("sort", "created")
-	direction := c.DefaultQuery("direction", "desc")
-
-	// Validate state parameter
-	validStates := map[string]bool{"open": true, "closed": true, "all": true}
-	if !validStates[state] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter. Must be 'open', 'closed', or 'all'"})
-		return
-	}
-
-	// Call the service to get pull requests
-	pullRequests, err := h.githubService.GetRepositoryPullRequests(c.Request.Context(), githubToken.(string), owner, repo, state, sort, direction)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Construct the response
-	response := gh.PullRequestResponse{
-		PullRequests: pullRequests,
-	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-func (h *PlatformHandler) GetExistingServiceByName(c *gin.Context) {
-	// Get the GitHub token from the context
-	githubToken, exists := c.Get("github_token")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Not authenticated",
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to clone repository: " + err.Error(),
 		})
 		return
 	}
 
-	gitURL, err := giturl.NewGitURL(*h.platformGitConfig.Remote)
+	// Get the worktree
+	w, err := r.Worktree()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get worktree: " + err.Error(),
+		})
 		return
 	}
 
-	// Get path parameters
-	owner := gitURL.GetOwnerName()
-	repo := gitURL.GetRepoName()
-
-	// Get query parameters with defaults
-	state := c.DefaultQuery("state", "all")
-	sort := c.DefaultQuery("sort", "created")
-	direction := c.DefaultQuery("direction", "desc")
-
-	// Validate state parameter
-	validStates := map[string]bool{"open": true, "closed": true, "all": true}
-	if !validStates[state] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter. Must be 'open', 'closed', or 'all'"})
-		return
-	}
-
-	// Call the service to get pull requests
-	pullRequests, err := h.githubService.GetRepositoryPullRequests(c.Request.Context(), githubToken.(string), owner, repo, state, sort, direction)
+	// Read ko-config.yaml
+	filePath := "konnect/ko-config.yaml"
+	file, err := w.Filesystem.Open(filePath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to open config file: " + err.Error(),
+		})
+		return
+	}
+	defer file.Close()
+
+	// Read file content
+	content, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to read config file: " + err.Error(),
+		})
 		return
 	}
 
-	// Construct the response
-	response := gh.PullRequestResponse{
-		PullRequests: pullRequests,
+	// Parse yaml
+	var orchestrator manifest.Orchestrator
+	if err := yaml.Unmarshal(content, &orchestrator); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to parse config file: " + err.Error(),
+		})
+		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	// Create response structure for frontend
+	type ServiceResponse struct {
+		Name        string `json:"name"`
+		Description string `json:"description,omitempty"`
+		SpecPath    string `json:"specPath,omitempty"`
+		ProdBranch  string `json:"prodBranch"`
+		DevBranch   string `json:"devBranch"`
+		Git         struct {
+			Repo string `json:"repo"`
+		} `json:"git"`
+		Team string `json:"team"`
+	}
+
+	// Convert orchestrator services to response format
+	services := []ServiceResponse{}
+	for teamName, team := range orchestrator.Teams {
+		for serviceKey, service := range team.Services {
+			if service == nil || service.Name == nil {
+				continue // Skip invalid services
+			}
+
+			// Get repo path from the remote URL or use the key as fallback
+			repoPath := serviceKey
+			if service.Git != nil && service.Git.Remote != nil {
+				// Extract repo path from full URL
+				remoteURL := *service.Git.Remote
+				if strings.Contains(remoteURL, "github.com") {
+					parts := strings.Split(remoteURL, "github.com/")
+					if len(parts) > 1 {
+						repoPath = strings.TrimSuffix(parts[1], ".git")
+					}
+				}
+			}
+
+			// Create service response
+			serviceResp := ServiceResponse{
+				Name:       *service.Name,
+				Team:       teamName,
+				ProdBranch: service.ProdBranch,
+				DevBranch:  service.DevBranch,
+				Git: struct {
+					Repo string `json:"repo"`
+				}{
+					Repo: repoPath,
+				},
+			}
+
+			// Add optional fields if available
+			if service.Description != nil {
+				serviceResp.Description = *service.Description
+			}
+			if service.SpecPath != "" {
+				serviceResp.SpecPath = service.SpecPath
+			}
+
+			services = append(services, serviceResp)
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"services": services,
+	})
 }
 
 func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
@@ -185,6 +220,7 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 		})
 		return
 	}
+
 	// Parse the request body
 	var repoInfo gh.Repository
 	if err := c.ShouldBindJSON(&repoInfo); err != nil {
@@ -350,13 +386,6 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 
 		return
 	}
-
-	// err = git.Push("dir", h.platformGitConfig)
-	// if err != nil {
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error pushing changes": err.Error()})
-
-	// 	return
-	// }
 
 	gitURL, err := giturl.NewGitURL(*h.platformGitConfig.Remote)
 	if err != nil {

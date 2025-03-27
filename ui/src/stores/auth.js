@@ -1,6 +1,6 @@
 // Authentication store using Pinia
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import api, { setCsrfToken } from '@/services/api';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref(null);
   const loading = ref(false);
   const error = ref(null);
+  const initialized = ref(false);
   
   // Getters (computed)
   const isAuthenticated = computed(() => {
@@ -32,6 +33,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const response = await api.user.getProfile();
       user.value = response.data;
+      initialized.value = true;
     } catch (err) {
       error.value = err.response?.data?.error || 'Failed to load user profile';
       // If authentication fails, clear the token
@@ -80,11 +82,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
   
-  // Check token on initialization
-  function checkAuth() {
-    const token = localStorage.getItem('auth_token');
-    if (token && !user.value) {
-      loadUser();
+  // Initialize auth state
+  function init() {
+    if (!initialized.value) {
+      const token = localStorage.getItem('auth_token');
+      if (token && !user.value) {
+        loadUser();
+      } else {
+        initialized.value = true;
+      }
     }
   }
   
@@ -94,6 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     loading,
     error,
+    initialized,
     
     // Getters
     isAuthenticated,
@@ -105,6 +112,6 @@ export const useAuthStore = defineStore('auth', () => {
     initiateLogin,
     handleCallback,
     logout,
-    checkAuth
+    init
   };
 });
