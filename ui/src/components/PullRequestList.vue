@@ -84,14 +84,16 @@
 import { ref, computed, onMounted } from 'vue';
 import { useGithubStore } from '@/stores/github';
 import api from '@/services/api';
+import { useApiRequest } from '@/composables/useApiRequest';
 
 const githubStore = useGithubStore();
 
 // Local state for pull requests
 const pullRequests = ref([]);
-const loading = ref(false);
-const error = ref(null);
 const dataLoaded = ref(false); // Track if data has been loaded
+
+// Use API request composable
+const { loading, error, execute } = useApiRequest();
 
 // Filter state
 const showOpen = ref(true);
@@ -133,19 +135,14 @@ const loadPullRequests = async () => {
   // Only load if not already loaded
   if (dataLoaded.value) return;
   
-  loading.value = true;
-  error.value = null;
+  const response = await execute(
+    () => api.repos.getPullRequests(),
+    'Failed to load pull requests',
+    { pull_requests: [] }
+  );
   
-  try {
-    const response = await api.repos.getPullRequests();
-    pullRequests.value = response.data.pull_requests || [];
-    dataLoaded.value = true; // Mark as loaded
-  } catch (err) {
-    console.error('Error fetching pull requests:', err);
-    error.value = err.response?.data?.error || 'Failed to load pull requests';
-  } finally {
-    loading.value = false;
-  }
+  pullRequests.value = response.pull_requests || [];
+  dataLoaded.value = true; // Mark as loaded
 };
 
 // Fetch pull requests when component mounts if not already loaded

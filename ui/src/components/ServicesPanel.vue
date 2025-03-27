@@ -80,14 +80,16 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import api from '@/services/api';
 import { useGithubStore } from '@/stores/github';
+import { useApiRequest } from '@/composables/useApiRequest';
 
 // State
 const services = ref([]);
 const teams = ref([]);
 const selectedTeam = ref('');
-const loading = ref(true);
-const error = ref(null);
 const githubStore = useGithubStore();
+
+// Create API request composable
+const { loading, error, execute } = useApiRequest();
 
 // Export teams for other components to use
 const getTeams = () => teams.value;
@@ -103,27 +105,21 @@ const filteredServices = computed(() => {
 
 // Methods
 const fetchServices = async () => {
-  loading.value = true;
-  error.value = null;
+  // Execute API request
+  const response = await execute(
+    () => api.services.getServices(),
+    'Failed to load services',
+    { services: [] }
+  );
   
-  try {
-    // Use the API to get services
-    const response = await api.services.getServices();
-    services.value = response.data.services || [];
-    
-    // Extract unique teams
-    const uniqueTeams = new Set(services.value.map(service => service.team).filter(Boolean));
-    teams.value = Array.from(uniqueTeams).sort();
-    
-    // Notify the github store of available teams
-    githubStore.setAvailableTeams(teams.value);
-  } catch (err) {
-    console.error('Error fetching services:', err);
-    error.value = err.response?.data?.error || 'Failed to load services';
-    services.value = [];
-  } finally {
-    loading.value = false;
-  }
+  services.value = response.services || [];
+  
+  // Extract unique teams
+  const uniqueTeams = new Set(services.value.map(service => service.team).filter(Boolean));
+  teams.value = Array.from(uniqueTeams).sort();
+  
+  // Notify the github store of available teams
+  githubStore.setAvailableTeams(teams.value);
 };
 
 const getRepoUrl = (git) => {

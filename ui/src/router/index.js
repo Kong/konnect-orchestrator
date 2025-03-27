@@ -42,40 +42,25 @@ const router = createRouter({
   routes
 });
 
-// Navigation guard to check authentication for protected routes
 router.beforeEach(async (to, from, next) => {
-  // Update document title
   document.title = to.meta.title || 'GitHub Explorer';
   
   const authStore = useAuthStore();
   
-  // Make sure auth is initialized
-  if (!authStore.initialized) {
-    await new Promise(resolve => {
-      const checkInterval = setInterval(() => {
-        if (authStore.initialized) {
-          clearInterval(checkInterval);
-          resolve();
-        }
-      }, 50);
-    });
-  }
+  // Wait for auth to initialize
+  await authStore.init();
   
   // Check if route requires authentication
   if (to.matched.some(record => record.meta.requiresAuth)) {
-    // Check if user is authenticated
     if (!authStore.isAuthenticated) {
-      // Redirect to login page
       next({
         path: '/',
         query: { redirect: to.fullPath }
       });
     } else {
-      // Continue to route
       next();
     }
   } else {
-    // Continue to route
     next();
   }
 });

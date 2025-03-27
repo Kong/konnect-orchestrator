@@ -80,14 +80,17 @@
           </div>
 
           <button 
-    v-if="githubStore.currentRepo" 
-    @click="sendServiceRepoInfo" 
-    class="add-service-btn"
-    :disabled="sendingRepo || !isFormValid"
-  >
-    <span v-if="sendingRepo" class="spinner-sm"></span>
-    {{ sendingRepo ? 'Sending...' : 'Add Service to Platform' }}
-  </button>
+  v-if="githubStore.currentRepo" 
+  @click="sendServiceRepoInfo" 
+  class="add-service-btn"
+  :disabled="sendingRepo || !isFormValid"
+>
+  <span v-if="sendingRepo" class="spinner-sm"></span>
+  {{ sendingRepo ? 'Sending...' : 'Add Service to Platform' }}
+</button>
+<div v-if="sendError" class="error-message">
+  {{ sendError }}
+</div>
         </div>
       </div>
 
@@ -113,11 +116,13 @@ import PullRequestList from '@/components/PullRequestList.vue';
 import ServicesPanel from '@/components/ServicesPanel.vue';
 import { onMounted, watch, ref, computed } from 'vue';
 import api from '@/services/api';
+import { useApiRequest } from '@/composables/useApiRequest';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const githubStore = useGithubStore();
-const sendingRepo = ref(false);
+const { loading: sendingRepo, error: sendError, execute } = useApiRequest();
+
 const repoDropdown = ref(null);
 const servicesPanel = ref(null);
 
@@ -160,6 +165,40 @@ const toggleEditDevBranch = () => {
   editingDevBranch.value = !editingDevBranch.value;
 };
 
+// Find the existing sendServiceRepoInfo function and replace its contents
+const sendServiceRepoInfo = async () => {
+  if (!githubStore.currentRepo || !isFormValid.value) return;
+
+  // Get the current repository object directly from the store
+  const repo = githubStore.currentRepo;
+
+  // Add is_enterprise field if it doesn't exist
+  if (repo.is_enterprise === undefined) {
+    repo.is_enterprise = false; // Default to false if not specified
+  }
+
+  // Execute API request using our composable
+  const response = await execute(
+    () => api.services.sendServiceRepoInfo(
+      repo,
+      addingNewTeam.value ? newTeamName.value : selectedTeam.value,
+      prodBranch.value,
+      devBranch.value
+    ),
+    'Failed to add service',
+    null
+  );
+
+  if (response) {
+    // Show success
+    console.log('Repository registered successfully:', response);
+    alert('Service added successfully!');
+
+    // Refresh services list
+    servicesPanel.value.fetchServices();
+  }
+};
+
 const confirmNewTeam = () => {
   if (newTeamName.value) {
     // Add to available teams
@@ -189,41 +228,6 @@ const isFormValid = computed(() => {
   return prodBranch.value && devBranch.value && selectedTeam.value;
 });
 
-const sendServiceRepoInfo = async () => {
-  if (!githubStore.currentRepo || !isFormValid.value) return;
-
-  sendingRepo.value = true;
-
-  try {
-    // Get the current repository object directly from the store
-    const repo = githubStore.currentRepo;
-
-    // Add is_enterprise field if it doesn't exist
-    if (repo.is_enterprise === undefined) {
-      repo.is_enterprise = false; // Default to false if not specified
-    }
-
-    // Send to backend using updated API method that matches the Go struct
-    const response = await api.services.sendServiceRepoInfo(
-      repo,
-      addingNewTeam.value ? newTeamName.value : selectedTeam.value,
-      prodBranch.value,
-      devBranch.value
-    );
-
-    // Show success
-    console.log('Repository registered successfully:', response.data);
-    alert('Service added successfully!');
-
-    // Refresh services list
-    servicesPanel.value.fetchServices();
-  } catch (error) {
-    console.error('Error registering repository:', error);
-    alert('Failed to add service. See console for details.');
-  } finally {
-    sendingRepo.value = false;
-  }
-};
 </script>
 
 <style scoped>
