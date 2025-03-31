@@ -42,35 +42,40 @@ const router = createRouter({
   routes
 });
 
+// In router/index.js
 router.beforeEach(async (to, from, next) => {
   console.log('Navigation guard running', { 
     to: to.path,
     from: from.path
   });
   
-  // Update document title
-  document.title = to.meta.title || 'GitHub Explorer';
-  
   const authStore = useAuthStore();
   
-  // If we're already on the home page and not authenticated, don't check again
-  if (to.path === '/' && !authStore.isAuthenticated) {
+  // Skip auth checks entirely if we just logged out
+  if (authStore.recentlyLoggedOut) {
+    console.log('Recently logged out, skipping auth checks');
+    authStore.recentlyLoggedOut = false;
+    return next();
+  }
+  
+  // For the home route, don't do authentication redirects
+  if (to.path === '/' && from.path === '/dashboard') {
+    console.log('Going from dashboard to home, allowing without auth check');
     return next();
   }
   
   // Check if the route requires authentication
   if (to.matched.some(record => record.meta.requiresAuth)) {
     console.log('Route requires auth, checking authentication state...');
-    
-    // Only run initialization once
-    if (!authStore.initialized) {
-      await authStore.init();
-    }
+    console.log('Auth state:', { 
+      initialized: authStore.initialized,
+      isAuthenticated: authStore.isAuthenticated
+    });
     
     // If we're not authenticated and trying to access a protected route
     if (!authStore.isAuthenticated) {
       console.log('Not authenticated, redirecting to home');
-      return next({
+      next({
         path: '/',
         query: { redirect: to.fullPath }
       });

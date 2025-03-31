@@ -2,14 +2,14 @@ import { useAuthStore } from '@/stores/auth';
 
 export default {
   install: (app) => {
+    // Access the store AFTER Pinia has been installed
     const authStore = useAuthStore();
     
-    // Initialize auth state, but check localStorage first
-    if (localStorage.getItem('auth_token')) {
+    // Initialize auth state
+    setTimeout(() => {
+      // Use setTimeout to ensure this runs after Pinia is fully initialized
       authStore.init();
-    } else {
-      authStore.initialized = true; // Mark as initialized without API call
-    }
+    }, 0);
     
     // Add global navigation guard for protected routes
     app.config.globalProperties.$authCheck = () => {

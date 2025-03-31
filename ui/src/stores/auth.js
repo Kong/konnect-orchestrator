@@ -1,8 +1,7 @@
 // Authentication store using Pinia
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import api, { setCsrfToken as setApiCsrfToken } from '@/services/api';
-import router from '@/router';
+import api, { setCsrfToken as setApiCsrfToken, getCsrfToken } from '@/services/api';
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -10,7 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false);
   const error = ref(null);
   const initialized = ref(false);
-  const intentionallyLoggedOut = ref(false);
+  const recentlyLoggedOut = ref(false);
   
   // Getters (computed)
   const isAuthenticated = computed(() => {
@@ -27,9 +26,6 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Actions
   async function loadUser() {
-    if (intentionallyLoggedOut.value) {
-      return false;
-    }
     loading.value = true;
     error.value = null;
     
@@ -39,9 +35,6 @@ export const useAuthStore = defineStore('auth', () => {
       
       // If we successfully got the user profile, we're authenticated
       user.value = response.data;
-      
-      // Set initialized flag
-      initialized.value = true;
       
       console.log('User loaded successfully:', !!user.value);
       return true;
@@ -57,6 +50,8 @@ export const useAuthStore = defineStore('auth', () => {
       return false;
     } finally {
       loading.value = false;
+      // Only set initialized to true after the whole process is complete
+      initialized.value = true;
     }
   }
 
@@ -80,20 +75,41 @@ export const useAuthStore = defineStore('auth', () => {
   
   async function logout() {
     try {
+      const currentCSRFToken = getCsrfToken();
+      console.log('CSRF token for logout:', currentCSRFToken);
+  
       if (isAuthenticated.value) {
-        await api.auth.logout();
+        try {
+          // Try server-side logout with the CSRF token
+          if (currentCSRFToken) {
+            await api.auth.logout({
+              headers: {
+                'X-CSRF-Token': currentCSRFToken
+              }
+            });
+          } else {
+            // If no CSRF token, try without it as a fallback
+            await api.auth.logout();
+          }
+        } catch (err) {
+          console.error('Server logout error:', err);
+          // Continue with client-side logout anyway
+        }
+        
+        // Clear auth cookie manually since server logout might have failed
+        document.cookie = "auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
       }
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
+      // Clear all client-side state
       user.value = null;
+      initialized.value = false;  // Force re-initialization on next check
       setCsrfToken('');
       localStorage.removeItem('auth_token');
-      intentionallyLoggedOut.value = true; // Set flag to prevent further checks
       
-      if (router && router.currentRoute && router.currentRoute.value.path !== '/') {
-        router.push('/');
-      }
+      // Set flag to prevent immediate re-authentication
+      recentlyLoggedOut.value = true;
     }
   }
   
@@ -102,19 +118,18 @@ export const useAuthStore = defineStore('auth', () => {
     
     return new Promise(async (resolve) => {
       try {
-        // Add a check here to prevent unnecessary API calls
-        if (!localStorage.getItem('auth_token')) {
-          initialized.value = true;
-          return resolve();
+        // Only try to load user if we have a token
+        if (localStorage.getItem('auth_token') || document.cookie.includes('auth_token=')) {
+          // IMPORTANT: Wait for loadUser to complete before resolving
+          await loadUser();
         }
-        
-        // Just try to load user - this will use the cookie if present
-        await loadUser();
       } catch (error) {
         console.error('Failed to load user during initialization:', error);
+        user.value = null; // Ensure user is cleared on error
+      } finally {
+        initialized.value = true;
+        resolve();
       }
-      initialized.value = true;
-      resolve();
     });
   }
   // Return state, getters, and actions

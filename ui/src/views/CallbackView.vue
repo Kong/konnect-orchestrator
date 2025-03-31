@@ -19,13 +19,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import api from '@/services/api';
+import { useToast } from '@/composables/useToast';
+import { onMounted, ref } from 'vue';
 
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const toast = useToast();
 
 // State
 const loading = ref(true);
@@ -39,35 +42,38 @@ const manualRedirect = () => {
 
 // Process the callback from GitHub
 onMounted(async () => {
+  const code = route.query.code;
+  
+  if (!code) {
+    toast.error('Authentication failed: No code provided');
+    router.push('/');
+    return;
+  }
+  
   try {
-    const code = route.query.code;
-    
-    if (!code) {
-      error.value = 'No authentication code received';
-      loading.value = false;
-      return;
-    }
-
-    // Use the api service method instead of direct axios call
+    // Verify the authentication code
     const response = await api.auth.verifyCode(code);
     
-    if (response.data.csrf_token) {
-      // Store CSRF token using the auth store method
-      authStore.setCsrfToken(response.data.csrf_token);
+    if (response.data.success) {
+      // Set the CSRF token
+      authStore.setSessionCsrfToken(response.data.csrf_token);
       
-      // Load user profile
-      await authStore.loadUser();
+      // IMPORTANT: Wait for the auth store to fully initialize and load user data
+      await authStore.init();
       
-      // Navigate to dashboard
-      router.push('/dashboard');
+      toast.success('Login successful!');
+      
+      // Only redirect after auth is fully established
+      const redirect = route.query.redirect || '/dashboard';
+      router.push(redirect);
     } else {
-      error.value = 'Authentication failed - no CSRF token received';
+      toast.error('Authentication failed');
+      router.push('/');
     }
-  } catch (err) {
-    console.error('Authentication error:', err);
-    error.value = 'Authentication failed. Please try again.';
-  } finally {
-    loading.value = false;
+  } catch (error) {
+    console.error('Auth error:', error);
+    toast.error('Authentication failed: ' + (error.message || 'Unknown error'));
+    router.push('/');
   }
 });
 </script>

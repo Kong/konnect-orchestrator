@@ -42,20 +42,14 @@ import { onMounted, watch } from 'vue';
 const router = useRouter();
 const authStore = useAuthStore();
 
-// Redirect to dashboard if already authenticated
-const checkAuth = () => {
-  if (authStore.isAuthenticated) {
-    router.push('/dashboard');
+onMounted(() => {
+  // Check if we just logged out
+  if (authStore.recentlyLoggedOut) {
+    // Don't redirect if we just logged out
+    return;
   }
-};
 
-onMounted(async () => {
-  // Try to load user data if we haven't already
-  if (!authStore.user && !authStore.loading) {
-    await authStore.loadUser();
-  }
-  
-  // Check authentication status after loading
+  // Otherwise do your normal redirect logic
   if (authStore.isAuthenticated) {
     console.log('Already authenticated, redirecting to dashboard');
     router.push('/dashboard');

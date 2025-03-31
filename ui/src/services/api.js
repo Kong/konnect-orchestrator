@@ -11,17 +11,22 @@ const apiClient = axios.create({
   }
 });
 
-// CSRF token storage
+// In api.js or where you handle CSRF tokens:
 let csrfToken = '';
 
+// When setting the token, also store it in sessionStorage
 export function setCsrfToken(token) {
   csrfToken = token;
-  sessionStorage.setItem('csrf_token', token); // Add this to persist across page refreshes
+  if (token) {
+    sessionStorage.setItem('csrf_token', token);
+  } else {
+    sessionStorage.removeItem('csrf_token');
+  }
 }
 
+// When getting the token, try to recover it from sessionStorage
 export function getCsrfToken() {
-  if (!csrfToken) {
-    // Try to get from sessionStorage if not in memory
+  if (!csrfToken && typeof sessionStorage !== 'undefined') {
     csrfToken = sessionStorage.getItem('csrf_token') || '';
   }
   return csrfToken;
@@ -45,19 +50,18 @@ apiClient.interceptors.request.use(config => {
 
 apiClient.interceptors.response.use(
   response => {
-    // Success handling (unchanged)
     return response;
   },
   async error => {
+    // Don't redirect if the error is from the logout endpoint
+    const isLogoutRequest = error.config && error.config.url === '/auth/logout';
+    
     // Handle 401 errors (unauthorized)
-    if (error.response && error.response.status === 401) {
-      // Only redirect if we're not already on the home page
-      if (window.location.pathname !== '/') {
-        // Clear token
-        localStorage.removeItem('auth_token');
-        setCsrfToken('');
-        window.location.href = '/';
-      }
+    if (error.response && error.response.status === 401 && !isLogoutRequest) {
+      // Clear token and redirect to login
+      localStorage.removeItem('auth_token');
+      setCsrfToken('');
+      window.location.href = '/';
     }
     return Promise.reject(error);
   }
@@ -83,12 +87,8 @@ const api = {
     },
 
     // Handle logout
-    logout() {
-      return apiClient.post('/auth/logout', {}, {
-        headers: {
-          'X-CSRF-Token': csrfToken
-        }
-      });
+    logout(config = {}) {
+      return apiClient.post('/auth/logout', {}, config);
     },
 
     // Refresh token
