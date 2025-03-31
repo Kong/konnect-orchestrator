@@ -33,14 +33,13 @@
   </template>
   
   <script setup>
-  import { useRouter, useRoute } from 'vue-router';
+  import { useRouter } from 'vue-router';
   import { useAuthStore } from '@/stores/auth';
   import { useGithubStore } from '@/stores/github';
   import OrgDropdown from '@/components/OrgDropdown.vue';
   import GitHubLogin from '@/components/GitHubLogin.vue';
   
   const router = useRouter();
-  const route = useRoute();
   const authStore = useAuthStore();
   const githubStore = useGithubStore();
   

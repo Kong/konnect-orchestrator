@@ -3,10 +3,11 @@ package github
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Kong/konnect-orchestrator/internal/config"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/go-github/v60/github"
 	"golang.org/x/oauth2"
 	githubOAuth "golang.org/x/oauth2/github"
@@ -107,25 +108,24 @@ func (s *AuthService) GenerateJWT(user *github.User, email, token string) (strin
 
 // ValidateToken validates a JWT token
 func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
-	// Parse the token
-	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// Validate the signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing method")
-		}
-		return []byte(s.config.JWTSecret), nil
-	})
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		&JWTClaims{},
+		func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
+			return []byte(s.config.JWTSecret), nil
+		},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
+		jwt.WithLeeway(5*time.Second), // Allow for clock skew
+	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Validate and return the claims
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
-		// Check if the token is expired
-		if time.Unix(claims.ExpiresAt, 0).Before(time.Now()) {
-			return nil, errors.New("token is expired")
-		}
 		return claims, nil
 	}
 

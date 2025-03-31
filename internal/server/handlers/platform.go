@@ -319,6 +319,17 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 		return
 	}
 
+	var prodBranch = "main"
+	var devBranch = "dev"
+
+	if repoInfo.ProdBranch != "" {
+		prodBranch = repoInfo.ProdBranch
+	}
+
+	if repoInfo.DevBranch != "" {
+		devBranch = repoInfo.DevBranch
+	}
+
 	newService := manifest.Service{
 		Name: &repoInfo.Name,
 		Git: &manifest.GitConfig{
@@ -326,8 +337,8 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 		},
 		Description: &repoInfo.Description,
 		SpecPath:    "openapi.yaml",
-		ProdBranch:  "prod",
-		DevBranch:   "dev",
+		ProdBranch:  prodBranch,
+		DevBranch:   devBranch,
 	}
 
 	man.Teams["core"].Services[repoInfo.FullName] = &newService

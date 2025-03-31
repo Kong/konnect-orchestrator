@@ -5,13 +5,13 @@ go 1.23.5
 require (
 	github.com/Kong/sdk-konnect-go v0.2.0
 	github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250221174722-8c540a2d0b06
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/ericlagergren/decimal v0.0.0-20240411145413-00de7ca16731
 	github.com/gin-contrib/cors v1.7.3
 	github.com/gin-contrib/sessions v1.0.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-git/go-billy/v5 v5.6.0
 	github.com/go-git/go-git/v5 v5.13.0
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/go-github/v60 v60.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kubescape/go-git-url v0.0.30

@@ -37,6 +37,16 @@ type Repository struct {
 	UpdatedAt     string `json:"updated_at,omitempty"`
 	IsEnterprise  bool   `json:"is_enterprise"`
 	Team          string `json:"team,omitempty"`
+	ProdBranch    string `json:"prodBranch,omitempty"`
+	DevBranch     string `json:"devBranch,omitempty"`
+}
+
+// Branch represents a GitHub repository branch
+type Branch struct {
+	Name      string `json:"name"`
+	CommitSHA string `json:"commit_sha"`
+	Protected bool   `json:"protected"`
+	IsDefault bool   `json:"is_default,omitempty"`
 }
 
 // FileContent represents a file content from GitHub

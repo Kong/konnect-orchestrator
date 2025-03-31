@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import api, { setCsrfToken as setApiCsrfToken } from '@/services/api';
+import router from '@/router';
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -9,6 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false);
   const error = ref(null);
   const initialized = ref(false);
+  const intentionallyLoggedOut = ref(false);
   
   // Getters (computed)
   const isAuthenticated = computed(() => {
@@ -25,6 +27,9 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Actions
   async function loadUser() {
+    if (intentionallyLoggedOut.value) {
+      return false;
+    }
     loading.value = true;
     error.value = null;
     
@@ -76,13 +81,19 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     try {
       if (isAuthenticated.value) {
-        api.auth.logout();
+        await api.auth.logout();
       }
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
       user.value = null;
       setCsrfToken('');
+      localStorage.removeItem('auth_token');
+      intentionallyLoggedOut.value = true; // Set flag to prevent further checks
+      
+      if (router && router.currentRoute && router.currentRoute.value.path !== '/') {
+        router.push('/');
+      }
     }
   }
   
@@ -91,6 +102,12 @@ export const useAuthStore = defineStore('auth', () => {
     
     return new Promise(async (resolve) => {
       try {
+        // Add a check here to prevent unnecessary API calls
+        if (!localStorage.getItem('auth_token')) {
+          initialized.value = true;
+          return resolve();
+        }
+        
         // Just try to load user - this will use the cookie if present
         await loadUser();
       } catch (error) {

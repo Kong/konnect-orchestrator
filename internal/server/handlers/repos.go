@@ -22,7 +22,7 @@ func NewRepoHandler(githubService *gh.GitHubService) *RepoHandler {
 
 // ListRepositories lists repositories for the authenticated user
 func (h *RepoHandler) ListRepositories(c *gin.Context) {
-	// Get the GitHub token from the context (set by the auth middleware)
+	// Get the GitHub token from the context
 	githubToken, exists := c.Get("github_token")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -33,7 +33,7 @@ func (h *RepoHandler) ListRepositories(c *gin.Context) {
 
 	// Get query parameters
 	visibility := c.DefaultQuery("visibility", "all") // Can be "all", "public", "private"
-	affiliation := c.DefaultQuery("affiliation", "owner,collaborator,organization_member")
+	affiliation := c.DefaultQuery("affiliation", "owner")
 
 	// Get repositories
 	repos, err := h.githubService.GetRepositories(
@@ -159,6 +159,69 @@ func (h *RepoHandler) GetRepositoryContent(c *gin.Context) {
 	c.JSON(http.StatusOK, content)
 }
 
+// ListRepositoryBranches lists branches for a repository
+func (h *RepoHandler) ListRepositoryBranches(c *gin.Context) {
+	// Get the GitHub token from the context
+	githubToken, exists := c.Get("github_token")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Not authenticated",
+		})
+		return
+	}
+
+	// Get parameters from the URL
+	owner := c.Param("owner")
+	repo := c.Param("repo")
+
+	// Check for missing parameters
+	if owner == "" || repo == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing owner or repository parameter",
+		})
+		return
+	}
+
+	// Check if the repository is accessible
+	accessible, err := h.githubService.IsRepositoryAccessible(
+		c.Request.Context(),
+		githubToken.(string),
+		owner,
+		repo,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to check repository access: " + err.Error(),
+		})
+		return
+	}
+
+	if !accessible {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Repository not accessible",
+		})
+		return
+	}
+
+	// Get branches
+	branches, err := h.githubService.GetRepositoryBranches(
+		c.Request.Context(),
+		githubToken.(string),
+		owner,
+		repo,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to get repository branches: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"branches": branches,
+	})
+}
+
 // ListEnterpriseOrganizations lists organizations for a GitHub Enterprise instance
 func (h *RepoHandler) ListEnterpriseOrganizations(c *gin.Context) {
 	// Get the GitHub token from the context (set by the auth middleware)
@@ -218,11 +281,14 @@ func (h *RepoHandler) ListUserRepositories(c *gin.Context) {
 		return
 	}
 
+	visibility := c.DefaultQuery("visibility", "all")
+
 	// Get repositories
 	repos, err := h.githubService.GetUserRepositories(
 		c.Request.Context(),
 		githubToken.(string),
 		username,
+		visibility,
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

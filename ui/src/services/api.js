@@ -4,7 +4,7 @@ import axios from 'axios';
 // Create axios instance with base URL from env
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
-  withCredentials: true, 
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -14,13 +14,16 @@ const apiClient = axios.create({
 // CSRF token storage
 let csrfToken = '';
 
-// Set CSRF token
 export function setCsrfToken(token) {
   csrfToken = token;
+  sessionStorage.setItem('csrf_token', token); // Add this to persist across page refreshes
 }
 
-// Get CSRF token
 export function getCsrfToken() {
+  if (!csrfToken) {
+    // Try to get from sessionStorage if not in memory
+    csrfToken = sessionStorage.getItem('csrf_token') || '';
+  }
   return csrfToken;
 }
 
@@ -31,32 +34,30 @@ apiClient.interceptors.request.use(config => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  
+
   // Add CSRF token for non-GET requests
   if (config.method !== 'get' && csrfToken) {
     config.headers['X-CSRF-Token'] = csrfToken;
   }
-  
+
   return config;
 });
 
-// Add interceptor to handle token refresh
 apiClient.interceptors.response.use(
   response => {
-    // Check if we got a refresh token and store it
-    const refreshToken = response.headers['x-refresh-token'];
-    if (refreshToken) {
-      localStorage.setItem('auth_token', refreshToken);
-    }
+    // Success handling (unchanged)
     return response;
   },
   async error => {
     // Handle 401 errors (unauthorized)
     if (error.response && error.response.status === 401) {
-      // Clear token and redirect to login
-      localStorage.removeItem('auth_token');
-      setCsrfToken(''); // Clear CSRF token
-      window.location.href = '/';
+      // Only redirect if we're not already on the home page
+      if (window.location.pathname !== '/') {
+        // Clear token
+        localStorage.removeItem('auth_token');
+        setCsrfToken('');
+        window.location.href = '/';
+      }
     }
     return Promise.reject(error);
   }
@@ -70,7 +71,7 @@ const api = {
     getLoginUrl() {
       return `${apiClient.defaults.baseURL}/auth/github`;
     },
-    
+
     verifyCode(code) {
       return apiClient.get('/auth/verify', { params: { code } });
     },
@@ -80,18 +81,22 @@ const api = {
     exchangeToken(code) {
       return apiClient.post('/auth/exchange', { code });
     },
-    
+
     // Handle logout
     logout() {
-      return apiClient.post('/auth/logout');
+      return apiClient.post('/auth/logout', {}, {
+        headers: {
+          'X-CSRF-Token': csrfToken
+        }
+      });
     },
-    
+
     // Refresh token
     refreshToken() {
       return apiClient.post('/auth/refresh');
     }
   },
-  
+
   // User endpoints
   user: {
     // Get current user profile
@@ -99,7 +104,7 @@ const api = {
       return apiClient.get('/api/user');
     }
   },
-  
+
   // Organization endpoints
   orgs: {
     // Get user's organizations
@@ -107,46 +112,67 @@ const api = {
       return apiClient.get('/api/orgs');
     }
   },
-  
+
   // Repository endpoints
   repos: {
-    // Get authenticated user's repositories
+    /**
+  * Get authenticated user's repositories
+  * @returns {Promise<Object>} Response containing user's repositories
+  */
     getUserRepos() {
-      return apiClient.get('/api/repos');
+      return apiClient.get('/api/repos', {
+        params: { visibility: 'all' }
+      });
     },
-    
-    // Get specific user's repositories
+
+    /**
+     * Get repositories for a specific user
+     * @param {string} username - GitHub username
+     * @returns {Promise<Object>} Response containing user's repositories
+     */
     getUserReposByUsername(username) {
-      return apiClient.get(`/api/users/${username}/repos`);
+      return apiClient.get(`/api/users/${username}/repos`, {
+        params: { visibility: 'all' }
+      });
     },
-    
-    // Get organization repositories
+
+    /**
+     * Get repositories for an organization
+     * @param {string} org - Organization name
+     * @returns {Promise<Object>} Response containing organization's repositories
+     */
     getOrgRepos(org) {
-      return apiClient.get(`/api/orgs/${org}/repos`);
+      return apiClient.get(`/api/orgs/${org}/repos`, {
+        params: { visibility: 'all' }
+      });
     },
-    
+
+    getRepoBranches(owner, repo) {
+      return apiClient.get(`/api/repos/${owner}/${repo}/branches`);
+    },
+
     // Get repository content
     getRepoContent(owner, repo, path = '', ref = '') {
       return apiClient.get(`/api/repos/${owner}/${repo}/contents/${path}${ref ? `?ref=${ref}` : ''}`);
     },
-    
+
     // Get pull requests for a repository
     getPullRequests(state = 'all') {
       return apiClient.get(`/api/platform/pulls`, {
         params: { state }
       });
     }
-    
+
   },
-  
+
   // Services endpoints
   services: {
     // Get all services
     getServices() {
       return apiClient.get('/api/platform/service');
     },
-  
-    sendServiceRepoInfo(repo, team, prodBranch = 'prod', devBranch = 'dev') {
+
+    sendServiceRepoInfo(repo, team, prodBranch, devBranch) {
       // Create a new object that matches the exact structure expected by the backend
       const repoData = {
         id: repo.id,
@@ -170,7 +196,7 @@ const api = {
         prodBranch: prodBranch,
         devBranch: devBranch
       };
-      
+
       return apiClient.post('/api/platform/service', repoData);
     }
   }

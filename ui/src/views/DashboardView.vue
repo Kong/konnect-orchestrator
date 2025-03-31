@@ -25,33 +25,47 @@
           <div v-if="githubStore.currentRepo" class="service-config-form">
             <h4>Service Configuration</h4>
 
-            <!-- Prod Branch -->
-            <div class="form-group">
-              <label>Prod Branch:</label>
-              <div class="editable-field">
-                <input type="text" v-model="prodBranch" :readonly="!editingProdBranch" class="branch-input" />
-                <button @click="toggleEditProdBranch" class="edit-button" :class="{ 'active': editingProdBranch }">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
+           <!-- Production Branch -->
+<div class="form-group">
+  <label for="prod-branch">Production Branch</label>
+  <select 
+    id="prod-branch" 
+    v-model="prodBranch"
+    class="form-control"
+    :disabled="!githubStore.branches.length || isLoading"
+  >
+    <option value="" disabled>Select production branch</option>
+    <option 
+      v-for="branch in githubStore.branchOptions" 
+      :key="branch.value" 
+      :value="branch.value"
+      :class="{'default-branch': branch.isDefault}"
+    >
+      {{ branch.label }}
+    </option>
+  </select>
+</div>
 
-            <!-- Dev Branch -->
-            <div class="form-group">
-              <label>Dev Branch:</label>
-              <div class="editable-field">
-                <input type="text" v-model="devBranch" :readonly="!editingDevBranch" class="branch-input" />
-                <button @click="toggleEditDevBranch" class="edit-button" :class="{ 'active': editingDevBranch }">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
+<!-- Development Branch -->
+<div class="form-group">
+  <label for="dev-branch">Development Branch</label>
+  <select 
+    id="dev-branch" 
+    v-model="devBranch"
+    class="form-control"
+    :disabled="!githubStore.branches.length || isLoading"
+  >
+    <option value="" disabled>Select development branch</option>
+    <option 
+      v-for="branch in githubStore.branchOptions" 
+      :key="branch.value" 
+      :value="branch.value"
+      :class="{'default-branch': branch.isDefault}"
+    >
+      {{ branch.label }}
+    </option>
+  </select>
+</div>
 
             <!-- Team Selection -->
             <div class="form-group">
@@ -79,18 +93,14 @@
             </div>
           </div>
 
-          <button 
-  v-if="githubStore.currentRepo" 
-  @click="sendServiceRepoInfo" 
-  class="add-service-btn"
-  :disabled="sendingRepo || !isFormValid"
->
-  <span v-if="sendingRepo" class="spinner-sm"></span>
-  {{ sendingRepo ? 'Sending...' : 'Add Service to Platform' }}
-</button>
-<div v-if="sendError" class="error-message">
-  {{ sendError }}
-</div>
+          <button v-if="githubStore.currentRepo" @click="sendServiceRepoInfo" class="add-service-btn"
+            :disabled="sendingRepo || !isFormValid">
+            <span v-if="sendingRepo" class="spinner-sm"></span>
+            {{ sendingRepo ? 'Sending...' : 'Add Service to Platform' }}
+          </button>
+          <div v-if="sendError" class="error-message">
+            {{ sendError }}
+          </div>
         </div>
       </div>
 
@@ -117,6 +127,8 @@ import ServicesPanel from '@/components/ServicesPanel.vue';
 import { onMounted, watch, ref, computed } from 'vue';
 import api from '@/services/api';
 import { useApiRequest } from '@/composables/useApiRequest';
+import { useToast } from '@/composables/useToast';
+
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -131,9 +143,9 @@ const prodBranch = ref('prod');
 const devBranch = ref('dev');
 const selectedTeam = ref('');
 const newTeamName = ref('');
-const editingProdBranch = ref(false);
-const editingDevBranch = ref(false);
 const addingNewTeam = ref(false);
+
+const toast = useToast();
 
 // Check authentication on component mount
 onMounted(() => {
@@ -152,17 +164,15 @@ watch(() => authStore.isAuthenticated, (isAuthenticated) => {
   }
 });
 
+watch(sendError, (error) => {
+  if (error) {
+    toast.error(`Failed to add service: ${error}`);
+  }
+});
+
 // Methods
 const handleRepoChange = (repoFullName) => {
   console.log('Selected repository:', repoFullName);
-};
-
-const toggleEditProdBranch = () => {
-  editingProdBranch.value = !editingProdBranch.value;
-};
-
-const toggleEditDevBranch = () => {
-  editingDevBranch.value = !editingDevBranch.value;
 };
 
 const sendServiceRepoInfo = async () => {
@@ -191,19 +201,19 @@ const sendServiceRepoInfo = async () => {
   if (response) {
     // Show success
     console.log('Repository registered successfully:', response);
-    alert('Service added successfully!');
+    toast.success('Service added successfully!');
 
     // Refresh services list
     servicesPanel.value.fetchServices();
-    
+
     // Invalidate pull requests cache since new PRs may have been created
     githubStore.invalidateCache('pullRequests');
-    
+
     // Optionally, refresh pull requests in the background
     // This preloads the data for when the user views PRs next
     githubStore.fetchPullRequests(true).catch(err => {
       console.error('Background PR refresh failed:', err);
-      // We don't show this error to the user since it's a background operation
+      toast.warning('Background pull request refresh failed. Try refreshing the page if updates are missing.');
     });
   }
 };
@@ -230,6 +240,46 @@ watch(selectedTeam, (newVal) => {
   if (newVal === 'new') {
     addingNewTeam.value = true;
     selectedTeam.value = '';
+  }
+});
+
+watch(() => githubStore.selectedRepo, async (newRepo) => {
+  if (newRepo) {
+    try {
+      // Branches will be fetched automatically by the store
+      // Wait for branches to be loaded
+      if (githubStore.loading.value) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Set default values based on repository branches
+      if (githubStore.branches.length > 0) {
+        // Find default branch
+        const defaultBranch = githubStore.branches.find(branch => branch.is_default);
+        if (defaultBranch) {
+          prodBranch.value = defaultBranch.name;
+          
+          // Look for common dev branch names
+          const devBranchNames = ['dev', 'develop', 'development', 'staging', 'test'];
+          const devBranch = githubStore.branches.find(branch => 
+            devBranchNames.includes(branch.name.toLowerCase())
+          );
+          
+          if (devBranch) {
+            devBranch.value = devBranch.name;
+          } else if (prodBranch.value !== defaultBranch.name) {
+            // Use default branch as dev if it's not already used for prod
+            devBranch.value = defaultBranch.name;
+          } else {
+            // If we can't find a good dev branch, just use the same as prod
+            devBranch.value = prodBranch.value;
+          }
+        }
+      }
+    } catch (error) {
+      toast.error('Failed to load repository branches');
+      console.error('Error fetching branches:', error);
+    }
   }
 });
 
@@ -295,6 +345,38 @@ h1 {
   /* Minimum height to ensure visibility */
 }
 
+.default-branch {
+  font-weight: 600;
+  color: #646cff;
+}
+
+select.form-control {
+  width: 100%;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: border-color 0.25s;
+}
+
+select.form-control:hover {
+  border-color: #646cff;
+}
+
+select.form-control:focus,
+select.form-control:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  select.form-control {
+    background-color: #f9f9f9;
+  }
+}
+
 .services-column {
   width: 100%;
   background-color: var(--color-bg-medium);
@@ -302,15 +384,19 @@ h1 {
   padding: 1.5rem;
   border: 1px solid var(--color-border);
   box-sizing: border-box;
-  position: relative; /* Create stacking context */
-  overflow: visible;  /* Allow children to overflow */
+  position: relative;
+  /* Create stacking context */
+  overflow: visible;
+  /* Allow children to overflow */
 }
 
 /* If you have a .services-panel deep selector, update it too */
 .services-column :deep(.services-panel) {
   padding-right: 10px;
-  overflow: visible; /* Allow overflow */
-  position: relative; /* Create stacking context */
+  overflow: visible;
+  /* Allow overflow */
+  position: relative;
+  /* Create stacking context */
 }
 
 .repo-selector {

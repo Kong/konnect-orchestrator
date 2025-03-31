@@ -3,6 +3,7 @@
     <NavBar v-if="shouldShowNavBar" />
     <main class="app-content">
       <router-view />
+      <Toast />
     </main>
   </div>
 </template>
@@ -11,6 +12,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import NavBar from '@/components/NavBar.vue';
+import Toast from '@/components/Toast.vue';
 
 const route = useRoute();
 

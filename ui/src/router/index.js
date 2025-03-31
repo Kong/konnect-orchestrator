@@ -53,18 +53,24 @@ router.beforeEach(async (to, from, next) => {
   
   const authStore = useAuthStore();
   
+  // If we're already on the home page and not authenticated, don't check again
+  if (to.path === '/' && !authStore.isAuthenticated) {
+    return next();
+  }
+  
   // Check if the route requires authentication
   if (to.matched.some(record => record.meta.requiresAuth)) {
     console.log('Route requires auth, checking authentication state...');
-    console.log('Auth state:', { 
-      initialized: authStore.initialized,
-      isAuthenticated: authStore.isAuthenticated
-    });
+    
+    // Only run initialization once
+    if (!authStore.initialized) {
+      await authStore.init();
+    }
     
     // If we're not authenticated and trying to access a protected route
     if (!authStore.isAuthenticated) {
       console.log('Not authenticated, redirecting to home');
-      next({
+      return next({
         path: '/',
         query: { redirect: to.fullPath }
       });

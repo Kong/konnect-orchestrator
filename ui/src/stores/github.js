@@ -15,19 +15,22 @@ export const useGithubStore = defineStore('github', () => {
   const repositoriesRequest = useApiRequest();
   const pullRequestsRequest = useApiRequest();
   const repoContentRequest = useApiRequest();
+  const branchesRequest = useApiRequest(); // New request composable for branches
 
   // State
   const availableTeams = ref([]);
   const repositories = ref([]);
   const organizations = ref([]);
   const pullRequests = ref([]);
+  const branches = ref([]); // New state for branches
   const selectedOrg = ref(null);
   const selectedRepo = ref(null);
   const loading = computed(() => 
     organizationsRequest.loading.value || 
     repositoriesRequest.loading.value || 
     pullRequestsRequest.loading.value ||
-    repoContentRequest.loading.value
+    repoContentRequest.loading.value ||
+    branchesRequest.loading.value // Add branches loading state
   );
   const error = ref(null);
 
@@ -36,7 +39,8 @@ export const useGithubStore = defineStore('github', () => {
     organizations: null,
     repositories: null,
     pullRequests: null,
-    repoContent: {}  // Will store path-specific timestamps
+    repoContent: {},  // Will store path-specific timestamps
+    branches: null    // Add branches timestamp
   });
   
   // Cache duration (5 minutes)
@@ -64,7 +68,7 @@ export const useGithubStore = defineStore('github', () => {
     }
   };
 
-  // Getters remain the same
+  // Getters
   const orgOptions = computed(() => {
     return organizations.value.map(org => ({
       value: org.login,
@@ -86,6 +90,15 @@ export const useGithubStore = defineStore('github', () => {
     }));
   });
 
+  // New getter for branch options
+  const branchOptions = computed(() => {
+    return branches.value.map(branch => ({
+      value: branch.name,
+      label: branch.name,
+      isDefault: branch.is_default
+    }));
+  });
+
   const currentRepo = computed(() => {
     if (!selectedRepo.value) return null;
     return repositories.value.find(repo => repo.full_name === selectedRepo.value);
@@ -101,7 +114,7 @@ export const useGithubStore = defineStore('github', () => {
     return currentOrg.value.isPersonal === true;
   });
 
-  // Actions - updated with caching
+  // Actions
   async function fetchOrganizations(forceRefresh = false) {
     // Skip if data is fresh and not forcing refresh
     if (!forceRefresh && organizations.value.length > 0 && isCacheValid('organizations')) {
@@ -112,8 +125,10 @@ export const useGithubStore = defineStore('github', () => {
     // Execute the API request
     const response = await organizationsRequest.execute(
       () => api.orgs.getUserOrgs(),
-      'Failed to load organizations',
-      { organizations: [] }
+      {
+        defaultErrorMsg: 'Failed to load organizations',
+        defaultValue: { organizations: [] }
+      }
     );
     
     // Update cache timestamp
@@ -167,6 +182,7 @@ export const useGithubStore = defineStore('github', () => {
     
     // Reset selected repo before loading new repos
     selectedRepo.value = null;
+    branches.value = []; // Clear branches when fetching new repositories
     
     // Track which org these repos belong to (for cache validation)
     lastFetchedOrg.value = selectedOrg.value;
@@ -177,7 +193,8 @@ export const useGithubStore = defineStore('github', () => {
     let apiCall;
     if (orgData && orgData.isPersonal) {
       // Use the user repositories endpoint for personal repos
-      apiCall = () => api.repos.getUserReposByUsername(orgData.login);
+      // apiCall = () => api.repos.getUserReposByUsername(orgData.login);
+      apiCall = () => api.repos.getUserRepos();
     } else if (selectedOrg.value) {
       // Use the organization repositories endpoint
       apiCall = () => api.repos.getOrgRepos(selectedOrg.value);
@@ -189,8 +206,10 @@ export const useGithubStore = defineStore('github', () => {
     // Execute the API request
     const response = await repositoriesRequest.execute(
       apiCall,
-      'Failed to load repositories',
-      { repositories: [] }
+      {
+        defaultErrorMsg: 'Failed to load repositories',
+        defaultValue: { repositories: [] }
+      }
     );
     
     // Update cache timestamp
@@ -199,6 +218,47 @@ export const useGithubStore = defineStore('github', () => {
     repositories.value = response.repositories || [];
     
     return repositories.value;
+  }
+
+  // New action to fetch branches for a repository
+  async function fetchBranches(forceRefresh = false) {
+    // Skip if no repository selected
+    if (!currentRepo.value) {
+      branches.value = [];
+      return [];
+    }
+    
+    // Skip if data is fresh and not forcing refresh
+    if (
+      !forceRefresh && 
+      branches.value.length > 0 && 
+      isCacheValid('branches') &&
+      lastFetchedRepo.value === selectedRepo.value
+    ) {
+      console.log('Using cached branches data');
+      return branches.value;
+    }
+    
+    // Track which repo these branches belong to (for cache validation)
+    lastFetchedRepo.value = selectedRepo.value;
+    
+    const [owner, repo] = currentRepo.value.full_name.split('/');
+    
+    // Execute the API request
+    const response = await branchesRequest.execute(
+      () => api.repos.getRepoBranches(owner, repo),
+      {
+        defaultErrorMsg: 'Failed to load repository branches',
+        defaultValue: { branches: [] }
+      }
+    );
+    
+    // Update cache timestamp
+    lastFetchTime.value.branches = Date.now();
+    
+    branches.value = response.branches || [];
+    
+    return branches.value;
   }
 
   async function fetchPullRequests(forceRefresh = false) {
@@ -210,8 +270,10 @@ export const useGithubStore = defineStore('github', () => {
     
     const response = await pullRequestsRequest.execute(
       () => api.repos.getPullRequests(),
-      'Failed to load pull requests',
-      { pull_requests: [] }
+      {
+        defaultErrorMsg: 'Failed to load pull requests',
+        defaultValue: { pull_requests: [] }
+      }
     );
     
     // Update cache timestamp
@@ -229,13 +291,22 @@ export const useGithubStore = defineStore('github', () => {
     
     selectedOrg.value = orgLogin;
     selectedRepo.value = null;
+    branches.value = []; // Clear branches when changing organization
     
     // We changed org, so fetch repositories
     fetchRepositories();
   }
 
   function selectRepository(repoFullName) {
+    if (selectedRepo.value === repoFullName) {
+      return; // No change needed
+    }
+    
     selectedRepo.value = repoFullName;
+    branches.value = []; // Clear branches when changing repository
+    
+    // Fetch branches for the selected repository
+    fetchBranches();
   }
 
   async function fetchRepoContent(path = '', ref = '') {
@@ -259,8 +330,10 @@ export const useGithubStore = defineStore('github', () => {
     
     const response = await repoContentRequest.execute(
       () => api.repos.getRepoContent(owner, repo, path, ref),
-      'Failed to load repository content',
-      null
+      {
+        defaultErrorMsg: 'Failed to load repository content',
+        defaultValue: null
+      }
     );
 
     // Update cache timestamp for this path
@@ -280,17 +353,36 @@ export const useGithubStore = defineStore('github', () => {
     return response;
   }
 
+  // Function to register a repository with specified branches
+  async function registerRepository(repo, branchConfig = { prodBranch: 'prod', devBranch: 'dev' }) {
+    if (!repo) return null;
+    
+    // Default team to 'core' if available
+    const team = availableTeams.value.find(t => t === 'core') ? 'core' : availableTeams.value[0] || '';
+    
+    const response = await api.services.sendServiceRepoInfo(
+      repo,
+      team,
+      branchConfig.prodBranch,
+      branchConfig.devBranch
+    );
+    
+    return response.data;
+  }
+
   // Add a content cache
   const repoContentCache = ref({});
   
-  // Track the last org we fetched repos for
+  // Track the last org and repo we fetched for
   const lastFetchedOrg = ref(null);
+  const lastFetchedRepo = ref(null);
 
   // Reset store state with cache invalidation
   function reset() {
     repositories.value = [];
     organizations.value = [];
     pullRequests.value = [];
+    branches.value = [];
     selectedOrg.value = null;
     selectedRepo.value = null;
     error.value = null;
@@ -306,6 +398,7 @@ export const useGithubStore = defineStore('github', () => {
     repositories,
     organizations,
     pullRequests,
+    branches,
     selectedOrg,
     selectedRepo,
     loading,
@@ -314,6 +407,7 @@ export const useGithubStore = defineStore('github', () => {
     // Getters
     orgOptions,
     repoOptions,
+    branchOptions,
     getAvailableTeams,
     currentRepo,
     currentOrg,
@@ -323,9 +417,11 @@ export const useGithubStore = defineStore('github', () => {
     fetchOrganizations,
     fetchRepositories,
     fetchPullRequests,
+    fetchBranches,
     selectOrganization,
     selectRepository,
     fetchRepoContent,
+    registerRepository,
     setAvailableTeams,
     reset,
     

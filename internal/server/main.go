@@ -140,6 +140,7 @@ func setupRouter(
 
 		// Repository routes
 		api.GET("/repos", repoHandler.ListRepositories)
+		api.GET("/repos/:owner/:repo/branches", repoHandler.ListRepositoryBranches)
 		api.GET("/users/:username/repos", repoHandler.ListUserRepositories)
 		api.GET("/orgs/:org/repos", repoHandler.ListOrganizationRepositories)
 		api.GET("/repos/:owner/:repo/contents/*path", repoHandler.GetRepositoryContent)

@@ -281,6 +281,50 @@ func (s *GitHubService) GetRepositoryContent(ctx context.Context, token, owner, 
 	return dirContent, nil
 }
 
+// GetRepositoryBranches gets branches for a repository
+func (s *GitHubService) GetRepositoryBranches(ctx context.Context, token, owner, repo string) ([]Branch, error) {
+	client := s.createClient(ctx, token)
+
+	// First get the repository to find the default branch
+	repository, _, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository: %w", err)
+	}
+
+	defaultBranch := repository.GetDefaultBranch()
+
+	// Set up options for listing branches
+	opts := &github.BranchListOptions{
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+
+	var allBranches []Branch
+	for {
+		branches, resp, err := client.Repositories.ListBranches(ctx, owner, repo, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list branches: %w", err)
+		}
+
+		// Map GitHub branches to our model
+		for _, branch := range branches {
+			allBranches = append(allBranches, Branch{
+				Name:      branch.GetName(),
+				CommitSHA: branch.GetCommit().GetSHA(),
+				Protected: branch.GetProtected(),
+				IsDefault: branch.GetName() == defaultBranch,
+			})
+		}
+
+		// Check if there are more pages
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return allBranches, nil
+}
+
 // GetEnterpriseOrganizations gets organizations for a GitHub Enterprise instance
 func (s *GitHubService) GetEnterpriseOrganizations(ctx context.Context, token, enterpriseServer string) ([]*github.Organization, error) {
 	// For GitHub Enterprise, we need to create a custom client with the enterprise server URL
@@ -422,12 +466,12 @@ func (s *GitHubService) GetUserOrganizations(ctx context.Context, token string) 
 }
 
 // GetUserRepositories gets repositories for a specific user
-func (s *GitHubService) GetUserRepositories(ctx context.Context, token string, username string) ([]Repository, error) {
+func (s *GitHubService) GetUserRepositories(ctx context.Context, token, username, visibility string) ([]Repository, error) {
 	client := s.createClient(ctx, token)
 
 	// Set up options for listing repositories
 	opts := &github.RepositoryListByUserOptions{
-		Type:        "all", // Include all repositories (public, private)
+		Type:        visibility, // Include all repositories (public, private)
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
 
