@@ -45,8 +45,9 @@ onMounted(async () => {
   const code = route.query.code;
   
   if (!code) {
+    loading.value = false;
+    error.value = 'No authentication code provided';
     toast.error('Authentication failed: No code provided');
-    router.push('/');
     return;
   }
   
@@ -58,22 +59,35 @@ onMounted(async () => {
       // Set the CSRF token
       authStore.setSessionCsrfToken(response.data.csrf_token);
       
-      // IMPORTANT: Wait for the auth store to fully initialize and load user data
-      await authStore.init();
+      // Load user data explicitly
+      const userLoaded = await authStore.loadUser();
       
-      toast.success('Login successful!');
-      
-      // Only redirect after auth is fully established
-      const redirect = route.query.redirect || '/dashboard';
-      router.push(redirect);
+      if (userLoaded) {
+        toast.success('Login successful!');
+        
+        // Set loading to false before redirect
+        loading.value = false;
+        
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          const redirect = route.query.redirect || '/dashboard';
+          router.push(redirect);
+        }, 100);
+      } else {
+        loading.value = false;
+        error.value = 'Failed to load user profile';
+        toast.error('Authentication failed: Could not load user profile');
+      }
     } else {
+      loading.value = false;
+      error.value = 'Authentication verification failed';
       toast.error('Authentication failed');
-      router.push('/');
     }
-  } catch (error) {
-    console.error('Auth error:', error);
-    toast.error('Authentication failed: ' + (error.message || 'Unknown error'));
-    router.push('/');
+  } catch (err) {
+    console.error('Auth error:', err);
+    loading.value = false;
+    error.value = err.message || 'Unknown authentication error';
+    toast.error('Authentication failed: ' + (err.message || 'Unknown error'));
   }
 });
 </script>

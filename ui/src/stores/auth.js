@@ -36,6 +36,9 @@ export const useAuthStore = defineStore('auth', () => {
       // If we successfully got the user profile, we're authenticated
       user.value = response.data;
       
+      // Set initialized flag
+      initialized.value = true;
+      
       console.log('User loaded successfully:', !!user.value);
       return true;
     } catch (err) {
@@ -50,8 +53,6 @@ export const useAuthStore = defineStore('auth', () => {
       return false;
     } finally {
       loading.value = false;
-      // Only set initialized to true after the whole process is complete
-      initialized.value = true;
     }
   }
 
@@ -114,21 +115,18 @@ export const useAuthStore = defineStore('auth', () => {
   }
   
   function init() {
-    if (initialized.value) return Promise.resolve();
+    if (initialized.value && user.value) return Promise.resolve(true);
     
     return new Promise(async (resolve) => {
       try {
-        // Only try to load user if we have a token
-        if (localStorage.getItem('auth_token') || document.cookie.includes('auth_token=')) {
-          // IMPORTANT: Wait for loadUser to complete before resolving
-          await loadUser();
-        }
+        // Try to load user - this will use the cookie if present
+        const success = await loadUser();
+        return resolve(success);
       } catch (error) {
         console.error('Failed to load user during initialization:', error);
-        user.value = null; // Ensure user is cleared on error
+        return resolve(false);
       } finally {
         initialized.value = true;
-        resolve();
       }
     });
   }

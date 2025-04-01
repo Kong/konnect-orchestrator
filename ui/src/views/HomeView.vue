@@ -42,6 +42,7 @@ import { onMounted, watch } from 'vue';
 const router = useRouter();
 const authStore = useAuthStore();
 
+// In HomeView.vue
 onMounted(() => {
   // Check if we just logged out
   if (authStore.recentlyLoggedOut) {

@@ -49,19 +49,15 @@ router.beforeEach(async (to, from, next) => {
     from: from.path
   });
   
+  // Update document title
+  document.title = to.meta.title || 'GitHub Explorer';
+  
   const authStore = useAuthStore();
   
-  // Skip auth checks entirely if we just logged out
-  if (authStore.recentlyLoggedOut) {
-    console.log('Recently logged out, skipping auth checks');
-    authStore.recentlyLoggedOut = false;
-    return next();
-  }
-  
-  // For the home route, don't do authentication redirects
-  if (to.path === '/' && from.path === '/dashboard') {
-    console.log('Going from dashboard to home, allowing without auth check');
-    return next();
+  // If auth is loading, wait for it to complete
+  if (authStore.loading.value) {
+    console.log('Auth is loading, waiting...');
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
   
   // Check if the route requires authentication
