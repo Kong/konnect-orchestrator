@@ -42,17 +42,14 @@ import { onMounted, watch } from 'vue';
 const router = useRouter();
 const authStore = useAuthStore();
 
-// In HomeView.vue
 onMounted(() => {
-  // Check if we just logged out
-  if (authStore.recentlyLoggedOut) {
-    // Don't redirect if we just logged out
+  // Skip auth check if we've recently logged out or auth has failed
+  if (authStore.recentlyLoggedOut || authStore.authenticationFailed) {
     return;
   }
 
-  // Otherwise do your normal redirect logic
+  // Check auth state without triggering a new API call
   if (authStore.isAuthenticated) {
-    console.log('Already authenticated, redirecting to dashboard');
     router.push('/dashboard');
   }
 });

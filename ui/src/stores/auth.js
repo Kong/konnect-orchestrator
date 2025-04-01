@@ -10,6 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref(null);
   const initialized = ref(false);
   const recentlyLoggedOut = ref(false);
+  const authenticationFailed = ref(false); // Add this flag
   
   // Getters (computed)
   const isAuthenticated = computed(() => {
@@ -26,6 +27,11 @@ export const useAuthStore = defineStore('auth', () => {
   
   // Actions
   async function loadUser() {
+    // Prevent unnecessary API calls if we've already tried and failed
+    if (authenticationFailed.value) {
+      return false;
+    }
+    
     loading.value = true;
     error.value = null;
     
@@ -35,9 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       // If we successfully got the user profile, we're authenticated
       user.value = response.data;
-      
-      // Set initialized flag
-      initialized.value = true;
+      authenticationFailed.value = false; // Reset on success
       
       console.log('User loaded successfully:', !!user.value);
       return true;
@@ -45,8 +49,9 @@ export const useAuthStore = defineStore('auth', () => {
       console.error('Failed to load user profile:', err);
       error.value = err.response?.data?.error || 'Failed to load user profile';
       
-      // Clear user on authentication errors
+      // Set the flag when authentication fails with 401
       if (err.response?.status === 401) {
+        authenticationFailed.value = true;
         user.value = null;
       }
       
@@ -62,6 +67,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function initiateLogin() {
+    // Reset authentication failed flag when initiating login
+    authenticationFailed.value = false;
     // Redirect to the GitHub login URL
     window.location.href = api.auth.getLoginUrl();
   }
@@ -108,14 +115,35 @@ export const useAuthStore = defineStore('auth', () => {
       initialized.value = false;  // Force re-initialization on next check
       setCsrfToken('');
       localStorage.removeItem('auth_token');
+      sessionStorage.removeItem('csrf_token'); // Also clear from sessionStorage
       
-      // Set flag to prevent immediate re-authentication
+      // Set flags to prevent immediate re-authentication
       recentlyLoggedOut.value = true;
+      authenticationFailed.value = true; // Also set this flag to prevent API thrashing
     }
   }
   
   function init() {
-    if (initialized.value && user.value) return Promise.resolve(true);
+    // Skip initialization if authentication has already failed
+    if (authenticationFailed.value) {
+      initialized.value = true;
+      return Promise.resolve(false);
+    }
+    
+    // If already initialized and authenticated, return immediately
+    if (initialized.value && user.value) {
+      return Promise.resolve(true);
+    }
+    
+    // Check for auth token before making API call
+    const hasToken = localStorage.getItem('auth_token') || 
+                    document.cookie.includes('auth_token=');
+    
+    if (!hasToken) {
+      // No token means no auth, avoid API call
+      initialized.value = true;
+      return Promise.resolve(false);
+    }
     
     return new Promise(async (resolve) => {
       try {
@@ -130,6 +158,16 @@ export const useAuthStore = defineStore('auth', () => {
       }
     });
   }
+  
+  // Reset all auth state (useful for testing or error recovery)
+  function reset() {
+    user.value = null;
+    error.value = null;
+    authenticationFailed.value = false;
+    recentlyLoggedOut.value = false;
+    initialized.value = false;
+  }
+  
   // Return state, getters, and actions
   return {
     // State
@@ -137,6 +175,8 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     error,
     initialized,
+    recentlyLoggedOut,
+    authenticationFailed, // Include the new flag
     
     // Getters
     isAuthenticated,
@@ -149,6 +189,7 @@ export const useAuthStore = defineStore('auth', () => {
     initiateLogin,
     setSessionCsrfToken,
     logout,
-    init
+    init,
+    reset // Include the new method
   };
 });

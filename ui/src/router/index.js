@@ -42,7 +42,6 @@ const router = createRouter({
   routes
 });
 
-// In router/index.js
 router.beforeEach(async (to, from, next) => {
   console.log('Navigation guard running', { 
     to: to.path,
@@ -53,6 +52,24 @@ router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title || 'GitHub Explorer';
   
   const authStore = useAuthStore();
+  
+  // Skip auth checks if we recently logged out
+  if (authStore.recentlyLoggedOut) {
+    console.log('Recently logged out, skipping auth checks');
+    authStore.recentlyLoggedOut = false;
+    return next();
+  }
+  
+  // Skip initialization if authentication has already failed
+  // This prevents repeated API calls to /api/user when logged out
+  const needsInit = !authStore.initialized && 
+                   to.matched.some(record => record.meta.requiresAuth) &&
+                   !authStore.authenticationFailed;
+                   
+  // Only initialize if necessary
+  if (needsInit) {
+    await authStore.init();
+  }
   
   // If auth is loading, wait for it to complete
   if (authStore.loading.value) {
@@ -65,7 +82,8 @@ router.beforeEach(async (to, from, next) => {
     console.log('Route requires auth, checking authentication state...');
     console.log('Auth state:', { 
       initialized: authStore.initialized,
-      isAuthenticated: authStore.isAuthenticated
+      isAuthenticated: authStore.isAuthenticated,
+      authFailed: authStore.authenticationFailed
     });
     
     // If we're not authenticated and trying to access a protected route

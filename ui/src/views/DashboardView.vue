@@ -180,41 +180,38 @@ const sendServiceRepoInfo = async () => {
 
   // Get the current repository object directly from the store
   const repo = githubStore.currentRepo;
+  
+  // Determine which team to use
+  const teamName = addingNewTeam.value ? newTeamName.value : selectedTeam.value;
 
-  // Add is_enterprise field if it doesn't exist
-  if (repo.is_enterprise === undefined) {
-    repo.is_enterprise = false; // Default to false if not specified
-  }
-
-  // Execute API request using our composable
-  const response = await execute(
-    () => api.services.sendServiceRepoInfo(
-      repo,
-      addingNewTeam.value ? newTeamName.value : selectedTeam.value,
-      prodBranch.value,
-      devBranch.value
-    ),
-    'Failed to add service',
-    null
-  );
-
-  if (response) {
+  try {
+    // Execute using the store action instead of directly calling the API
+    await execute(
+      () => githubStore.registerService(
+        repo, 
+        teamName,
+        prodBranch.value,
+        devBranch.value
+      ),
+      'Failed to add service',
+      null
+    );
+    
     // Show success
-    console.log('Repository registered successfully:', response);
     toast.success('Service added successfully!');
 
     // Refresh services list
     servicesPanel.value.fetchServices();
-
-    // Invalidate pull requests cache since new PRs may have been created
-    githubStore.invalidateCache('pullRequests');
-
+    
     // Optionally, refresh pull requests in the background
-    // This preloads the data for when the user views PRs next
     githubStore.fetchPullRequests(true).catch(err => {
       console.error('Background PR refresh failed:', err);
       toast.warning('Background pull request refresh failed. Try refreshing the page if updates are missing.');
     });
+  } catch (error) {
+    // Error handling happens in the execute function
+    console.error('Service registration error:', error);
+    // The execute composable will show errors automatically
   }
 };
 

@@ -353,21 +353,28 @@ export const useGithubStore = defineStore('github', () => {
     return response;
   }
 
-  // Function to register a repository with specified branches
-  async function registerRepository(repo, branchConfig = { prodBranch: 'prod', devBranch: 'dev' }) {
-    if (!repo) return null;
+  async function registerService(repo, teamName, prodBranch, devBranch) {
+    if (!repo || !teamName) return null;
     
-    // Default team to 'core' if available
-    const team = availableTeams.value.find(t => t === 'core') ? 'core' : availableTeams.value[0] || '';
-    
-    const response = await api.services.sendServiceRepoInfo(
-      repo,
-      team,
-      branchConfig.prodBranch,
-      branchConfig.devBranch
-    );
-    
-    return response.data;
+    // Add is_enterprise field if it doesn't exist
+    if (repo.is_enterprise === undefined) {
+      repo.is_enterprise = false;
+    }
+  
+    try {
+      // Show loading state
+      const response = await api.services.sendServiceRepoInfo(
+        repo,
+        teamName,
+        prodBranch,
+        devBranch
+      );
+      
+      return response.data;
+    } catch (error) {
+      console.error('Failed to register service:', error);
+      throw error;
+    }
   }
 
   // Add a content cache
@@ -421,7 +428,7 @@ export const useGithubStore = defineStore('github', () => {
     selectOrganization,
     selectRepository,
     fetchRepoContent,
-    registerRepository,
+    registerService,
     setAvailableTeams,
     reset,
     

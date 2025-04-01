@@ -56,12 +56,24 @@ apiClient.interceptors.response.use(
     // Don't redirect if the error is from the logout endpoint
     const isLogoutRequest = error.config && error.config.url === '/auth/logout';
     
+    // Don't redirect if already on home page or auth pages
+    const isOnPublicPage = window.location.pathname === '/' || 
+                          window.location.pathname.startsWith('/auth');
+    
     // Handle 401 errors (unauthorized)
     if (error.response && error.response.status === 401 && !isLogoutRequest) {
-      // Clear token and redirect to login
+      // Update the auth store to prevent repeated auth attempts
+      const authStore = useAuthStore();
+      authStore.authenticationFailed = true;
+      
+      // Clear token 
       localStorage.removeItem('auth_token');
       setCsrfToken('');
-      window.location.href = '/';
+      
+      // Only redirect if not already on a public page
+      if (!isOnPublicPage) {
+        window.location.href = '/';
+      }
     }
     return Promise.reject(error);
   }

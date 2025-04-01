@@ -775,7 +775,6 @@ func setupManifestConfig() (manifest.Orchestrator, error) {
 			return man, fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
 		}
 
-		var teamsFilePath string
 		if teamsFileArg != "" {
 			teamsFilePath, err = filepath.Abs(teamsFileArg)
 			if err != nil {
@@ -786,7 +785,6 @@ func setupManifestConfig() (manifest.Orchestrator, error) {
 			}
 		}
 
-		var organizationsFilePath string
 		if organizationsFileArg != "" {
 			organizationsFilePath, err = filepath.Abs(organizationsFileArg)
 			if err != nil {

@@ -341,7 +341,7 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 		DevBranch:   devBranch,
 	}
 
-	man.Teams["core"].Services[repoInfo.FullName] = &newService
+	man.Teams[repoInfo.Team].Services[repoInfo.FullName] = &newService
 
 	file, err = w.Filesystem.Create(filePath)
 	if err != nil {
