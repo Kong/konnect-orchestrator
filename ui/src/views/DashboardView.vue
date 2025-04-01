@@ -32,7 +32,7 @@
     id="prod-branch" 
     v-model="prodBranch"
     class="form-control"
-    :disabled="!githubStore.branches.length || isLoading"
+    :disabled="!githubStore.branches.length || sendingRepo"
   >
     <option value="" disabled>Select production branch</option>
     <option 
@@ -53,7 +53,7 @@
     id="dev-branch" 
     v-model="devBranch"
     class="form-control"
-    :disabled="!githubStore.branches.length || isLoading"
+    :disabled="!githubStore.branches.length || sendingRepo"
   >
     <option value="" disabled>Select development branch</option>
     <option 
