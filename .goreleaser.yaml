@@ -42,7 +42,7 @@ brews:
     commit_author:
       name: Rick Spurgeon 
       email: rspurgeon@users.noreply.github.com
-    homepage: "https://github.com/kong/konnect-orchestrator"
+    homepage: "https://github.com/Kong/konnect-orchestrator"
     description: Opinionated Kong Konnect organization orchestration via declarative configuration 
     skip_upload: auto
     test: |
