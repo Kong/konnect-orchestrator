@@ -5,113 +5,117 @@
     </div>
 
     <div class="dashboard-content">
-      <div class="main-content">
-        <div class="content-header">
-          <div v-if="githubStore.currentOrg" class="current-context">
-            <span v-if="githubStore.isPersonalAccount" class="context-badge personal">
-              User
-            </span>
-            <span v-else class="context-badge org">
-              Organization
-            </span>
-            <h2>{{ githubStore.currentOrg.name || githubStore.currentOrg.login }}</h2>
-          </div>
+      <!-- Left column for selection -->
+      <div class="selection-column">
+        <div class="column-header">
+          <h3>Org / Repo Select</h3>
         </div>
 
-        <div class="repo-selector">
-          <RepoDropdown ref="repoDropdown" @change="handleRepoChange" />
+        <!-- Organization dropdown moved from navbar -->
+        <OrgDropdown @change="handleOrgChange" />
+        
+        <!-- Repository selector -->
+        <RepoDropdown ref="repoDropdown" @change="handleRepoChange" />
 
-          <!-- Configuration Form placed outside repo details but before button -->
-          <div v-if="githubStore.currentRepo" class="service-config-form">
-            <h4>Service Configuration</h4>
+        <!-- Configuration Form -->
+        <div v-if="githubStore.currentRepo" class="service-config-form">
+          <h4>Service Configuration</h4>
 
-           <!-- Production Branch -->
-<div class="form-group">
-  <label for="prod-branch">Production Branch</label>
-  <select 
-    id="prod-branch" 
-    v-model="prodBranch"
-    class="form-control"
-    :disabled="!githubStore.branches.length || sendingRepo"
-  >
-    <option value="" disabled>Select production branch</option>
-    <option 
-      v-for="branch in githubStore.branchOptions" 
-      :key="branch.value" 
-      :value="branch.value"
-      :class="{'default-branch': branch.isDefault}"
-    >
-      {{ branch.label }}
-    </option>
-  </select>
-</div>
+          <!-- Production Branch -->
+          <div class="form-group">
+            <label for="prod-branch">Production Branch</label>
+            <select 
+              id="prod-branch" 
+              v-model="prodBranch"
+              class="form-control"
+              :disabled="!githubStore.branches.length || sendingRepo"
+            >
+              <option value="" disabled>Select production branch</option>
+              <option 
+                v-for="branch in githubStore.branchOptions" 
+                :key="branch.value" 
+                :value="branch.value"
+                :class="{'default-branch': branch.isDefault}"
+              >
+                {{ branch.label }}
+              </option>
+            </select>
+          </div>
 
-<!-- Development Branch -->
-<div class="form-group">
-  <label for="dev-branch">Development Branch</label>
-  <select 
-    id="dev-branch" 
-    v-model="devBranch"
-    class="form-control"
-    :disabled="!githubStore.branches.length || sendingRepo"
-  >
-    <option value="" disabled>Select development branch</option>
-    <option 
-      v-for="branch in githubStore.branchOptions" 
-      :key="branch.value" 
-      :value="branch.value"
-      :class="{'default-branch': branch.isDefault}"
-    >
-      {{ branch.label }}
-    </option>
-  </select>
-</div>
+          <!-- Development Branch -->
+          <div class="form-group">
+            <label for="dev-branch">Development Branch</label>
+            <select 
+              id="dev-branch" 
+              v-model="devBranch"
+              class="form-control"
+              :disabled="!githubStore.branches.length || sendingRepo"
+            >
+              <option value="" disabled>Select development branch</option>
+              <option 
+                v-for="branch in githubStore.branchOptions" 
+                :key="branch.value" 
+                :value="branch.value"
+                :class="{'default-branch': branch.isDefault}"
+              >
+                {{ branch.label }}
+              </option>
+            </select>
+          </div>
 
-            <!-- Team Selection -->
-            <div class="form-group">
-              <label>Team:</label>
-              <div v-if="!addingNewTeam">
-                <select v-model="selectedTeam" class="team-input">
-                  <option value="">-- Select Team --</option>
-                  <option v-for="team in githubStore.availableTeams" :key="team" :value="team">
-                    {{ team }}
-                  </option>
-                  <option value="new">+ Add New Team</option>
-                </select>
-              </div>
-              <div v-else class="new-team-field">
-                <input type="text" v-model="newTeamName" placeholder="Enter new team name" class="branch-input" />
-                <div class="button-group">
-                  <button @click="confirmNewTeam" class="confirm-button">
-                    ✓
-                  </button>
-                  <button @click="cancelNewTeam" class="cancel-button">
-                    ✕
-                  </button>
-                </div>
+          <!-- Team Selection -->
+          <div class="form-group">
+            <label>Team:</label>
+            <div v-if="!addingNewTeam">
+              <select v-model="selectedTeam" class="team-input">
+                <option value="">-- Select Team --</option>
+                <option v-for="team in githubStore.availableTeams" :key="team" :value="team">
+                  {{ team }}
+                </option>
+                <option value="new">+ Add New Team</option>
+              </select>
+            </div>
+            <div v-else class="new-team-field">
+              <input type="text" v-model="newTeamName" placeholder="Enter new team name" class="branch-input" />
+              <div class="button-group">
+                <button @click="confirmNewTeam" class="confirm-button">
+                  ✓
+                </button>
+                <button @click="cancelNewTeam" class="cancel-button">
+                  ✕
+                </button>
               </div>
             </div>
           </div>
+        </div>
 
-          <button v-if="githubStore.currentRepo" @click="sendServiceRepoInfo" class="add-service-btn"
-            :disabled="sendingRepo || !isFormValid">
-            <span v-if="sendingRepo" class="spinner-sm"></span>
-            {{ sendingRepo ? 'Sending...' : 'Add Service to Platform' }}
-          </button>
-          <div v-if="sendError" class="error-message">
-            {{ sendError }}
-          </div>
+        <button v-if="githubStore.currentRepo" @click="sendServiceRepoInfo" class="add-service-btn"
+          :disabled="sendingRepo || !isFormValid">
+          <span v-if="sendingRepo" class="spinner-sm"></span>
+          {{ sendingRepo ? 'Sending...' : 'Add Service to Platform' }}
+        </button>
+        <div v-if="sendError" class="error-message">
+          {{ sendError }}
         </div>
       </div>
 
-      <!-- Services Column -->
-      <div class="services-column">
-        <ServicesPanel ref="servicesPanel" />
-      </div>
+      <!-- Platform Repository Wrapper -->
+      <div class="platform-repository-wrapper">
+        <div class="platform-header">
+          <h3>Platform Repository</h3>
+        </div>
+        
+        <div class="platform-content">
+          <!-- Services Column -->
+          <div class="services-column">
+            <ServicesPanel ref="servicesPanel" />
+          </div>
 
-      <!-- Pull Requests Column -->
-      <div class="pull-requests-column">
-        <PullRequestList />
+          <!-- Pull Requests Column -->
+          <div class="pull-requests-column">
+            <PullRequestList />
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -122,6 +126,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useGithubStore } from '@/stores/github';
 import RepoDropdown from '@/components/RepoDropdown.vue';
+import OrgDropdown from '@/components/OrgDropdown.vue';
 import PullRequestList from '@/components/PullRequestList.vue';
 import ServicesPanel from '@/components/ServicesPanel.vue';
 import { onMounted, watch, ref, computed } from 'vue';
@@ -170,6 +175,10 @@ watch(sendError, (error) => {
 });
 
 // Methods
+const handleOrgChange = (orgLogin) => {
+  githubStore.selectOrganization(orgLogin);
+};
+
 const handleRepoChange = (repoFullName) => {
   console.log('Selected repository:', repoFullName);
 };
@@ -289,6 +298,7 @@ const isFormValid = computed(() => {
 .dashboard {
   width: 100%;
   max-width: 1600px;
+  height: calc(100vh - 180px); /* Adjust based on header and navbar height */
 }
 
 .dashboard-header {
@@ -315,30 +325,83 @@ h1 {
 
 .dashboard-content {
   display: grid;
-  grid-template-columns: 450px 1fr 300px;
-  /* Wider left column, narrower middle column */
+  grid-template-columns: 350px 1fr;
   gap: 20px;
-  /* Consistent gap between all columns */
   width: 100%;
+  height: calc(100% - 80px); /* Adjust based on header height */
   margin: 0 auto;
   background-color: var(--color-bg-dark);
   align-items: start;
-  /* Align columns to the top */
 }
 
-.main-content,
-.pull-requests-column {
+.selection-column {
   width: 100%;
   background-color: var(--color-bg-medium);
   border-radius: 8px;
   padding: 1.5rem;
   border: 1px solid var(--color-border);
   box-sizing: border-box;
-  /* Ensure padding is included in the width */
   height: auto;
-  /* Auto height based on content */
   min-height: 200px;
-  /* Minimum height to ensure visibility */
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.column-header {
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.75rem;
+}
+
+.column-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+.platform-repository-wrapper {
+  width: 100%;
+  background-color: var(--color-bg-medium);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.platform-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.platform-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--color-primary);
+}
+
+.platform-content {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  padding: 1.5rem;
+  flex-grow: 1;
+  height: 0; /* Allow flexbox to control height */
+  min-height: 0; /* Important for nested flexbox to respect overflow */
+  overflow: hidden; /* Prevent double scrollbars */
+}
+
+.services-column,
+.pull-requests-column {
+  width: 100%;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 200px;
+  overflow: hidden; /* Let children handle overflow */
+  display: flex;
+  flex-direction: column;
 }
 
 .default-branch {
@@ -373,73 +436,6 @@ select.form-control:focus-visible {
   }
 }
 
-.services-column {
-  width: 100%;
-  background-color: var(--color-bg-medium);
-  border-radius: 8px;
-  padding: 1.5rem;
-  border: 1px solid var(--color-border);
-  box-sizing: border-box;
-  position: relative;
-  /* Create stacking context */
-  overflow: visible;
-  /* Allow children to overflow */
-}
-
-/* If you have a .services-panel deep selector, update it too */
-.services-column :deep(.services-panel) {
-  padding-right: 10px;
-  overflow: visible;
-  /* Allow overflow */
-  position: relative;
-  /* Create stacking context */
-}
-
-.repo-selector {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.add-service-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 12px;
-  background: linear-gradient(90deg, var(--color-accent-blue), var(--color-primary));
-  color: white;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.add-service-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.add-service-btn:disabled {
-  background: linear-gradient(90deg, #666, #999);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-  opacity: 0.7;
-}
-
-.spinner-sm {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  border-top-color: white;
-  animation: spin 1s linear infinite;
-}
-
 .service-config-form {
   margin: 1rem 0;
   padding: 1rem;
@@ -469,41 +465,16 @@ select.form-control:focus-visible {
   margin-bottom: 0;
 }
 
-.editable-field {
-  display: flex;
-  align-items: center;
-}
-
 .branch-input,
 .team-input {
-  flex: 1;
+  width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
   background-color: var(--color-bg-dark);
   color: var(--color-text-white);
   font-size: 13px;
-}
-
-.branch-input:read-only {
-  opacity: 0.8;
-}
-
-.edit-button {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  padding: 5px;
-  margin-left: 5px;
-  cursor: pointer;
-  border-radius: 4px;
-  line-height: 0;
-}
-
-.edit-button:hover,
-.edit-button.active {
-  color: var(--color-primary);
-  background-color: rgba(0, 185, 105, 0.1);
+  box-sizing: border-box;
 }
 
 .new-team-field {
@@ -529,6 +500,7 @@ select.form-control:focus-visible {
   cursor: pointer;
   border-radius: 4px;
   margin-left: 4px;
+  padding: 0;
 }
 
 .confirm-button {
@@ -548,67 +520,90 @@ select.form-control:focus-visible {
   color: white;
 }
 
-.content-header {
-  margin-bottom: 1.5rem;
-}
-
-.current-context {
+.add-service-btn {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-
-.context-badge {
-  padding: 6px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.context-badge.personal {
-  background-color: var(--color-accent-blue);
+  justify-content: center;
+  gap: 0.5rem;
+  padding: a2px;
+  margin-top: 1rem;
+  background: linear-gradient(90deg, var(--color-accent-blue), var(--color-primary));
   color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  width: 100%;
 }
 
-.context-badge.org {
-  background-color: var(--color-primary);
-  color: white;
+.add-service-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
-.current-context h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  color: var(--color-text-white);
+.add-service-btn:disabled {
+  background: linear-gradient(90deg, #666, #999);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  opacity: 0.7;
+}
+
+.spinner-sm {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+.error-message {
+  color: #f85149;
+  margin-top: 0.5rem;
+  font-size: 14px;
 }
 
 @media (max-width: 1200px) {
   .dashboard-content {
-    width: 100%;
+    grid-template-columns: 300px 1fr;
+  }
+  
+  .platform-content {
+    grid-template-columns: 1fr;
     gap: 20px;
-    /* Keep consistent gap even on smaller screens */
+  }
+  
+  .services-column, 
+  .pull-requests-column {
+    width: 100%;
+    height: auto;
+    min-height: 300px;
   }
 }
 
 @media (max-width: 992px) {
   .dashboard {
     width: 100%;
+    height: auto;
   }
 
   .dashboard-content {
     grid-template-columns: 1fr;
     gap: 20px;
-    /* Maintain vertical gap between stacked columns */
+    height: auto;
   }
 
-  .services-column,
-  .pull-requests-column {
-    position: static;
-    max-height: none;
-    overflow-y: visible;
+  .platform-content {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    height: auto;
+  }
+  
+  .platform-repository-wrapper {
+    height: auto;
   }
 }
 
