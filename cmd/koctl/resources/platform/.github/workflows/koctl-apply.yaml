@@ -1,6 +1,7 @@
 name: Konnect - koctl apply
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
