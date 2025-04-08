@@ -37,6 +37,13 @@ import (
 //go:embed resources/platform/* resources/platform/.github/* resources/platform/.gitignore
 var resourceFiles embed.FS
 
+const (
+	defaultOrchestratorPath = "konnect/"
+	defaultPlatformFilePath = defaultOrchestratorPath + "platform.yaml"
+	defaultTeamsFilePath    = defaultOrchestratorPath + "teams.yaml"
+	defaultOrgsFilePath     = defaultOrchestratorPath + "organizations.yaml"
+)
+
 var (
 	loopInterval         int
 	wholeFileArg         string
@@ -66,6 +73,13 @@ necessary resource definitions. See the init command for an example of the requi
 	RunE: runApply,
 }
 
+var runCmd = &cobra.Command{
+	Use:   "run",
+	Short: "Run the orchestrators API server",
+	Long:  `The orchestrator can run an API server which can handle HTTP requests related to the state of the platform repository.`,
+	RunE:  runRun,
+}
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version of koctl",
@@ -75,18 +89,34 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	applyCmd.Flags().StringVar(&wholeFileArg, "file", "", "Path to the configuration file. This is a convenience flag to apply the whole configuration in one file")
-	applyCmd.Flags().StringVar(&platformFileArg, "platform", "", "Path to the platform configuration file. Superseded by --file")
-	applyCmd.Flags().StringVar(&teamsFileArg, "teams", "", "Path to the teams configuration file. Superseded by --file")
-	applyCmd.Flags().StringVar(&organizationsFileArg, "orgs", "", "Path to the organizations configuration file. Superseded by --file")
+	applyCmd.Flags().StringVar(&wholeFileArg,
+		"file",
+		"",
+		"Path to the configuration file. This is a convenience flag to apply the whole configuration in one file")
+	applyCmd.Flags().StringVar(&platformFileArg,
+		"platform",
+		"./"+defaultPlatformFilePath,
+		"Path to the platform configuration file. Superseded by --file")
+	applyCmd.Flags().StringVar(&teamsFileArg,
+		"teams",
+		"./"+defaultTeamsFilePath,
+		"Path to the teams configuration file. Superseded by --file")
+	applyCmd.Flags().StringVar(&organizationsFileArg,
+		"orgs",
+		"./"+defaultOrgsFilePath,
+		"Path to the organizations configuration file. Superseded by --file")
 	applyCmd.Flags().IntVarP(&loopInterval,
-		"loop", "l", 0, "Run in a loop with specified interval in seconds (0 = run once)")
+		"loop", "l", 0, "Run apply in a loop with specified interval in seconds (0 = run once)")
 
-	applyCmd.MarkFlagsOneRequired("file", "platform")
+	runCmd.Flags().StringVar(&platformFileArg,
+		"platform",
+		"./"+defaultPlatformFilePath,
+		"Path to the platform configuration file.")
 
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.AddCommand(applyCmd)
+	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 
@@ -753,61 +783,67 @@ func applyPlatformRepo(gitCfg *manifest.GitConfig) error {
 	return nil
 }
 
-func setupManifestConfig() (manifest.Orchestrator, error) {
+func loadPlatformManifest(path string) (*manifest.Platform, error) {
+	var rv manifest.Orchestrator
+	err := readConfigSection(path, &rv)
+	return rv.Platform, err
+}
+
+func loadConfigManifest() (*manifest.Orchestrator, error) {
 	var man manifest.Orchestrator
 	var wholeFilePath, platformFilePath, teamsFilePath, organizationsFilePath string
 	if wholeFileArg != "" {
 		var err error
 		wholeFilePath, err = filepath.Abs(wholeFileArg)
 		if err != nil {
-			return man, fmt.Errorf("failed to resolve whole file path: %w", err)
+			return nil, fmt.Errorf("failed to resolve whole file path: %w", err)
 		}
 		if _, err := os.Stat(wholeFilePath); err != nil {
-			return man, fmt.Errorf("failed to access file %s: %w", wholeFilePath, err)
+			return nil, fmt.Errorf("failed to access file %s: %w", wholeFilePath, err)
 		}
 	} else {
 		var err error
-		platformFilePath, err := filepath.Abs(platformFileArg)
+		platformFilePath, err = filepath.Abs(platformFileArg)
 		if err != nil {
-			return man, fmt.Errorf("failed to resolve platform file path: %w", err)
+			return nil, fmt.Errorf("failed to resolve platform file path: %w", err)
 		}
 		if _, err := os.Stat(platformFilePath); err != nil {
-			return man, fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
+			return nil, fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
 		}
 
 		if teamsFileArg != "" {
 			teamsFilePath, err = filepath.Abs(teamsFileArg)
 			if err != nil {
-				return man, fmt.Errorf("failed to resolve teams file path: %w", err)
+				return nil, fmt.Errorf("failed to resolve teams file path: %w", err)
 			}
 			if _, err := os.Stat(teamsFilePath); err != nil {
-				return man, fmt.Errorf("failed to access file %s: %w", teamsFilePath, err)
+				return nil, fmt.Errorf("failed to access file %s: %w", teamsFilePath, err)
 			}
 		}
 
 		if organizationsFileArg != "" {
 			organizationsFilePath, err = filepath.Abs(organizationsFileArg)
 			if err != nil {
-				return man, fmt.Errorf("failed to resolve organizations file path: %w", err)
+				return nil, fmt.Errorf("failed to resolve organizations file path: %w", err)
 			}
 			if _, err := os.Stat(organizationsFilePath); err != nil {
-				return man, fmt.Errorf("failed to access file %s: %w", organizationsFilePath, err)
+				return nil, fmt.Errorf("failed to access file %s: %w", organizationsFilePath, err)
 			}
 		}
 	}
 
 	if wholeFilePath != "" {
 		if err := readConfigSection(wholeFilePath, &man); err != nil {
-			return man, fmt.Errorf("failed to read whole configuration: %w", err)
+			return nil, fmt.Errorf("failed to read whole configuration: %w", err)
 		}
 	} else {
 		if err := readConfigSection(platformFilePath, &man); err != nil {
-			return man, fmt.Errorf("failed to read platform configuration: %w", err)
+			return nil, fmt.Errorf("failed to read platform configuration: %w", err)
 		}
 
 		if teamsFilePath != "" {
 			if err := readConfigSection(teamsFilePath, &man); err != nil {
-				return man, fmt.Errorf("failed to read teams configuration: %w", err)
+				return nil, fmt.Errorf("failed to read teams configuration: %w", err)
 			}
 		} else {
 			man.Teams = make(map[string]*manifest.Team)
@@ -815,17 +851,17 @@ func setupManifestConfig() (manifest.Orchestrator, error) {
 
 		if organizationsFilePath != "" {
 			if err := readConfigSection(organizationsFilePath, &man); err != nil {
-				return man, fmt.Errorf("failed to read organizations configuration: %w", err)
+				return nil, fmt.Errorf("failed to read organizations configuration: %w", err)
 			}
 		} else {
 			man.Organizations = make(map[string]*manifest.Organization)
 		}
 	}
 
-	return man, nil
+	return &man, nil
 }
 
-func apply(man manifest.Orchestrator) error {
+func apply(man *manifest.Orchestrator) error {
 	err := applyPlatformRepo(man.Platform.Git)
 	if err != nil {
 		return fmt.Errorf("failed to apply platform repository changes: %w", err)
@@ -844,66 +880,41 @@ func apply(man manifest.Orchestrator) error {
 }
 
 func runApply(_ *cobra.Command, _ []string) error {
-	man, err := setupManifestConfig()
-	if err != nil {
-		return err
-	}
+
 	// We're not looping, run once and exit
 	if loopInterval == 0 {
+		man, err := loadConfigManifest()
+		if err != nil {
+			return err
+		}
 		return apply(man)
 	}
-	var applyHealth = make(chan string)
-	// We're looping, start the server and goroutine for regular applys
-	go loopApply(man, applyHealth)
-	return server.RunServer(*man.Platform.Git, applyHealth, version, commit, date)
-}
-
-// startBackgroundProcess runs applyOnce in a loop at the specified interval
-func loopApply(man manifest.Orchestrator, applyHealth chan string) {
-	// Recover from panics in the goroutine
-	defer func() {
-		if r := recover(); r != nil {
-			message := fmt.Sprintf("Recovered from panic in background process: %v", r)
-			select {
-			case applyHealth <- message:
-				// Sent successfully
-			case <-applyHealth:
-				// Channel was full, drained the old value
-				applyHealth <- message // Now we can send the new value
-			}
-
-			time.Sleep(5 * time.Second)
-			go loopApply(man, applyHealth) // Restart the process
-		}
-	}()
 
 	// Main processing loop
 	for {
-		if err := apply(man); err != nil {
-			message := fmt.Sprintf("Error in apply process: %v", err)
-			select {
-			case applyHealth <- message:
-				// Sent successfully
-			case <-applyHealth:
-				// Channel was full, drained the old value
-				applyHealth <- message // Now we can send the new value
-			}
-
-			// Add backoff for errors to prevent thrashing
-			time.Sleep(5 * time.Second)
-		} else {
-			message := "healthy"
-			select {
-			case applyHealth <- message:
-				// Sent successfully
-			case <-applyHealth:
-				// Channel was full, drained the old value
-				applyHealth <- message // Now we can send the new value
-			}
+		man, err := loadConfigManifest()
+		if err != nil {
+			return err
+		}
+		err = apply(man)
+		if err != nil {
+			fmt.Printf("Error applying configuration: %v\n", err)
+			return err
 		}
 
 		time.Sleep(time.Duration(loopInterval) * time.Second)
 	}
+}
+
+func runRun(_ *cobra.Command, _ []string) error {
+	platform, err := loadPlatformManifest(platformFileArg)
+	if err != nil {
+		return err
+	}
+	return server.RunServer(*platform.Git,
+		defaultTeamsFilePath,
+		defaultOrgsFilePath,
+		version, commit, date)
 }
 
 func Execute() error {

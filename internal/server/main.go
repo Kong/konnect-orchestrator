@@ -18,7 +18,8 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/server/middleware"
 )
 
-func RunServer(platformGitConfig manifest.GitConfig, applyHealth chan string, version, commit, date string) error {
+func RunServer(platformGitConfig manifest.GitConfig,
+	teamsConfigPath, orgsConfigPath, version, commit, date string) error {
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -30,12 +31,12 @@ func RunServer(platformGitConfig manifest.GitConfig, applyHealth chan string, ve
 	githubService := services.NewGitHubService(authService)
 
 	// Set up handlers
-	healthHandler := handlers.NewHealthHandler(applyHealth, version, commit, date)
+	healthHandler := handlers.NewHealthHandler(version, commit, date)
 	authHandler := handlers.NewAuthHandler(authService, cfg)
 	userHandler := handlers.NewUserHandler(githubService)
 	repoHandler := handlers.NewRepoHandler(githubService)
 	orgHandler := handlers.NewOrgHandler(githubService)
-	platformHandler := handlers.NewPlatformHandler(githubService, platformGitConfig)
+	platformHandler := handlers.NewPlatformHandler(githubService, platformGitConfig, teamsConfigPath, orgsConfigPath)
 
 	// Set up middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService)

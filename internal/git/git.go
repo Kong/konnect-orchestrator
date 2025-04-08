@@ -20,7 +20,19 @@ import (
 
 // GetAuthMethod returns an ssh.AuthMethod based on the git config, or nil if no auth is specified
 func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
-	if gitConfig.Auth == nil {
+	// If the user has configured a well known env var for GitHub, we allow that to
+	// supercede the git and github configuration presented here. This allows
+	// koctl to run within a GitHub action even if the user has a configuration file that reads
+	// secrets from local secrets files.
+	// check if GITHUB_TOKEN is set
+	tok, ghTokFound := os.LookupEnv("GITHUB_TOKEN")
+	if ghTokFound {
+		bashAuth := &http.BasicAuth{
+			Username: "x-access-token",
+			Password: tok,
+		}
+		return bashAuth, nil
+	} else if gitConfig.Auth == nil {
 		// by default, we can use GitHub auth for git auth which can simplify the configuration required
 		if gitConfig.GitHub == nil || gitConfig.GitHub.Token == nil {
 			return nil, errors.New("no auth configured. Must specify either auth or github with token value")
