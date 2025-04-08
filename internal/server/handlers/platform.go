@@ -27,13 +27,18 @@ import (
 type PlatformHandler struct {
 	githubService     *gh.GitHubService
 	platformGitConfig manifest.GitConfig
+	teamsFilePath     string
+	orgsFilePath      string
 }
 
 // NewRepoHandler creates a new RepoHandler
-func NewPlatformHandler(githubService *gh.GitHubService, platformGitConfig manifest.GitConfig) *PlatformHandler {
+func NewPlatformHandler(githubService *gh.GitHubService, platformGitConfig manifest.GitConfig,
+	teamsFilePath, orgsFilePath string) *PlatformHandler {
 	return &PlatformHandler{
 		githubService:     githubService,
 		platformGitConfig: platformGitConfig,
+		teamsFilePath:     teamsFilePath,
+		orgsFilePath:      orgsFilePath,
 	}
 }
 
@@ -119,9 +124,7 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 		return
 	}
 
-	// Read ko-config.yaml
-	filePath := "konnect/ko-config.yaml"
-	file, err := w.Filesystem.Open(filePath)
+	file, err := w.Filesystem.Open(h.teamsFilePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to open config file: " + err.Error(),
@@ -240,8 +243,6 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 
 	baseBranch := "main"
 
-	filePath := "konnect/ko-config.yaml"
-
 	// Create unique branch name with timestamp
 	newBranchName := fmt.Sprintf("add-service-%s", repoInfo.Name)
 
@@ -293,7 +294,7 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 
 	// Read existing file content (if any)
 	var oldContent []byte
-	file, err := w.Filesystem.Open(filePath)
+	file, err := w.Filesystem.Open(h.teamsFilePath)
 	if err == nil {
 		// File exists, read its content
 		oldContent, err = io.ReadAll(file)
@@ -343,7 +344,7 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 
 	man.Teams[repoInfo.Team].Services[repoInfo.FullName] = &newService
 
-	file, err = w.Filesystem.Create(filePath)
+	file, err = w.Filesystem.Create(h.teamsFilePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error creating file": err.Error()})
 		return
@@ -366,7 +367,7 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 	}
 	file.Close()
 
-	_, err = w.Add(filePath)
+	_, err = w.Add(h.teamsFilePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error staging file": err.Error()})
 

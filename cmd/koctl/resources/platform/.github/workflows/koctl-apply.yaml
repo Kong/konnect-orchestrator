@@ -1,0 +1,26 @@
+name: Konnect - koctl apply
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "konnect/platform.yaml"
+      - "konnect/teams.yaml"
+      - "konnect/organizations.yaml"
+
+jobs:
+  sync-changes:
+    name: Sync Gateway Configs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup koctl
+        uses: jaxxstorm/action-install-gh-release@v2.0.0
+        with:
+          repo: Kong/konnect-orchestrator
+
+      - name: Run koctl apply
+        run: |
+          koctl apply 
