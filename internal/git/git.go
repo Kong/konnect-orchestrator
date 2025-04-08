@@ -27,11 +27,11 @@ func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 	// check if GITHUB_TOKEN is set
 	tok, ghTokFound := os.LookupEnv("GITHUB_TOKEN")
 	if ghTokFound {
-		bashAuth := &http.BasicAuth{
+		basicAuth := &http.BasicAuth{
 			Username: "x-access-token",
 			Password: tok,
 		}
-		return bashAuth, nil
+		return basicAuth, nil
 	} else if gitConfig.Auth == nil {
 		// by default, we can use GitHub auth for git auth which can simplify the configuration required
 		if gitConfig.GitHub == nil || gitConfig.GitHub.Token == nil {
@@ -41,11 +41,11 @@ func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 		if err != nil {
 			return nil, err
 		}
-		bashAuth := &http.BasicAuth{
+		basicAuth := &http.BasicAuth{
 			Username: "x-access-token",
 			Password: key,
 		}
-		return bashAuth, nil
+		return basicAuth, nil
 	}
 
 	// Return nil if no auth configured
@@ -69,11 +69,11 @@ func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 		if err != nil {
 			return nil, err
 		}
-		bashAuth := &http.BasicAuth{
+		basicAuth := &http.BasicAuth{
 			Username: "x-access-token",
 			Password: key,
 		}
-		return bashAuth, nil
+		return basicAuth, nil
 	}
 
 	return nil, errors.New("unsupported auth type: " + *gitConfig.Auth.Type)
