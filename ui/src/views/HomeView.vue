@@ -2,7 +2,7 @@
   <div class="home">
     <div class="hero">
       <h1>{{ title }}</h1>
-      <h2 class="gradient-subtitle">There is no <span class="gradient-text">real-time data</span> without APIs.</h2>
+      <h2 class="gradient-subtitle">Enabling <span class="gradient-text">self-service</span> API platforms.</h2>
       
       <div v-if="authStore.isAuthenticated" class="welcome-back">
         <p>Welcome back, {{ authStore.username }}!</p>
@@ -10,25 +10,22 @@
           Go to Dashboard
         </router-link>
       </div>
-      <div v-else class="login-instructions">
-        <p>Connect with GitHub to browse your repositories and manage services.</p>
-      </div>
     </div>
     
     <div class="features">
       <div class="feature">
-        <h3>Browse Repositories</h3>
-        <p>View all your GitHub repositories in one place with real-time synchronization.</p>
+        <h3>1. Browse Service Repositories</h3>
+        <p>Navigate your orgs and repositories to select the services you want in the platform.</p>
       </div>
       
       <div class="feature">
-        <h3>Repository Details</h3>
-        <p>Quick access to repository information, branches, and contributors.</p>
+        <h3>2. Submit PRs to Add Service</h3>
+        <p>Trigger a PR from within the orchestrator UI to add that service to the platform configuration.</p>
       </div>
       
       <div class="feature">
-        <h3>Private Access</h3>
-        <p>Securely access your private repositories with OAuth integration.</p>
+        <h3>3. Merge PR to Trigger Workflow</h3>
+        <p>Review and merge the PR on Github to see a real-time update of the platform services list.</p>
       </div>
     </div>
   </div>
