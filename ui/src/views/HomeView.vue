@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <div class="hero">
-      <h1>GitHub Repository Explorer</h1>
+      <h1>{{ title }}</h1>
       <h2 class="gradient-subtitle">There is no <span class="gradient-text">real-time data</span> without APIs.</h2>
       
       <div v-if="authStore.isAuthenticated" class="welcome-back">
@@ -41,7 +41,7 @@ import { onMounted, watch } from 'vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
-
+const title = import.meta.env.VITE_APP_TITLE
 onMounted(() => {
   // Skip auth check if we've recently logged out or auth has failed
   if (authStore.recentlyLoggedOut || authStore.authenticationFailed) {

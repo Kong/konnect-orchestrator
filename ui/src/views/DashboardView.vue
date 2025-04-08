@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard">
     <div class="dashboard-header">
-      <h1 class="gradient-text">GitHub Repository Dashboard</h1>
+      <h1 class="gradient-text">{{ title }}</h1>
     </div>
 
     <div class="dashboard-content">
@@ -125,7 +125,6 @@ import RepoDropdown from '@/components/RepoDropdown.vue';
 import PullRequestList from '@/components/PullRequestList.vue';
 import ServicesPanel from '@/components/ServicesPanel.vue';
 import { onMounted, watch, ref, computed } from 'vue';
-import api from '@/services/api';
 import { useApiRequest } from '@/composables/useApiRequest';
 import { useToast } from '@/composables/useToast';
 
@@ -134,7 +133,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 const githubStore = useGithubStore();
 const { loading: sendingRepo, error: sendError, execute } = useApiRequest();
-
+const title = import.meta.env.VITE_APP_TITLE
 const repoDropdown = ref(null);
 const servicesPanel = ref(null);
 

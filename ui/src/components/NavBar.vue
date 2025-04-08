@@ -2,7 +2,7 @@
     <nav class="navbar">
       <div class="navbar-brand">
         <router-link to="/" class="navbar-logo">
-          GitHub Repository Explorer
+          {{ title }}
         </router-link>
       </div>
       
@@ -42,7 +42,7 @@
   const router = useRouter();
   const authStore = useAuthStore();
   const githubStore = useGithubStore();
-  
+  const title = import.meta.env.VITE_APP_TITLE
   const logout = async () => {
     await authStore.logout();
     router.push('/');
