@@ -162,6 +162,9 @@ onMounted(() => {
 .services-panel {
   width: 100%;
   max-width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .header-container {
@@ -169,6 +172,7 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 1rem;
+  flex-shrink: 0;
 }
 
 h3 {
@@ -206,6 +210,7 @@ h3 {
   flex-direction: column;
   align-items: center;
   padding: 2rem 0;
+  flex-grow: 1;
 }
 
 .spinner {
@@ -225,6 +230,7 @@ h3 {
   background-color: rgba(248, 81, 73, 0.1);
   border-radius: 6px;
   font-size: 14px;
+  flex-grow: 1;
 }
 
 .empty-message {
@@ -237,22 +243,22 @@ h3 {
   background-color: var(--color-bg-light);
   border-radius: 6px;
   border: 1px dashed var(--color-border);
+  flex-grow: 1;
 }
 
-/* Update the .services-list class */
 .services-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  max-height: calc(100vh - 12rem);
+  flex-grow: 1;
   overflow-y: auto;
+  min-height: 0;
   padding-right: 10px;
   padding-top: 5px;    /* Add padding to top */
   padding-bottom: 5px; /* Add padding to bottom */
   margin: -5px 0;      /* Negative margin to compensate for padding */
 }
 
-/* Update service-card styles */
 .service-card {
   background-color: var(--color-bg-light);
   border: 1px solid var(--color-border);

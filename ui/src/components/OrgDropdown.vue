@@ -107,12 +107,13 @@ onMounted(() => {
 }
 
 label {
-  display: inline-block;
-  margin-bottom: 0;
+  display: block;
+  margin-bottom: 0.5rem;
   margin-right: 10px;
   font-weight: 500;
   color: var(--color-text-light);
   white-space: nowrap;
+  width: 100%;
 }
 
 .select-container {
