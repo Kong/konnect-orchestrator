@@ -5,7 +5,6 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/organization/portal"
 	"github.com/Kong/konnect-orchestrator/internal/organization/role"
 	"github.com/Kong/konnect-orchestrator/internal/organization/team"
+	"github.com/Kong/konnect-orchestrator/internal/platform"
 	"github.com/Kong/konnect-orchestrator/internal/reports"
 	"github.com/Kong/konnect-orchestrator/internal/server"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
@@ -63,6 +63,12 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+var initCmd = &cobra.Command{
+	Use:   "init",
+	Short: "Initialize a platform repository",
+	RunE:  runInit,
+}
+
 var applyCmd = &cobra.Command{
 	Use:   "apply",
 	Short: "Apply a configuration to Konnect organizations",
@@ -80,6 +86,18 @@ var runCmd = &cobra.Command{
 	RunE:  runRun,
 }
 
+var addCmd = &cobra.Command{
+	Use:   "add",
+	Short: "Add a new resource to the platform repository",
+}
+
+var addOrganizationCmd = &cobra.Command{
+	Use:   "organization",
+	Short: "Add a new organization to the platform repository",
+	Long:  `Use this command to add a new organization to the platform repository via a PR filed in the platform repository`,
+	RunE:  runAddOrganization,
+}
+
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version of koctl",
@@ -89,6 +107,8 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	addCmd.AddCommand(addOrganizationCmd)
+
 	applyCmd.Flags().StringVar(&wholeFileArg,
 		"file",
 		"",
@@ -113,11 +133,18 @@ func init() {
 		"./"+defaultPlatformFilePath,
 		"Path to the platform configuration file.")
 
+	initCmd.Flags().StringVar(&platformFileArg,
+		"platform",
+		"./"+defaultPlatformFilePath,
+		"Path to the platform configuration file.")
+
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.AddCommand(applyCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(addCmd)
+	rootCmd.AddCommand(initCmd)
 }
 
 func readConfigSection(filePath string, out interface{}) error {
@@ -490,7 +517,7 @@ func applyTeam(teamName string,
 			gitURL.GetOwnerName(),
 			gitURL.GetRepoName(),
 			branchName,
-			fmt.Sprintf("[Konnect] [%s] Konnect Orchestrator applied changes", envName),
+			fmt.Sprintf("[Konnect Orchestrator] - Changes for [%s] environment", envName),
 			fmt.Sprintf(
 				"For the %s environment, Konnect Orchestrator has detected changes in upstream service repositories "+
 					"and has generated the associated changes.", envName,
@@ -664,122 +691,29 @@ func applyOrganization(
 	return nil
 }
 
-// copyFile copies a single file from the embedded FS to the local filesystem
-func copyFile(embedFS embed.FS, srcPath, dstPath string) error {
-	// Open the embedded file
-	srcFile, err := embedFS.Open(srcPath)
+func runInit(_ *cobra.Command, _ []string) error {
+	pc, err := loadPlatformManifest(platformFileArg)
 	if err != nil {
-		return fmt.Errorf("failed to open embedded file %s: %w", srcPath, err)
+		return err
 	}
-	defer srcFile.Close()
-
-	// Ensure the destination directory exists
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-		return fmt.Errorf("failed to create destination directory %s: %w", filepath.Dir(dstPath), err)
-	}
-
-	// Create the destination file
-	dstFile, err := os.Create(dstPath)
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %w", dstPath, err)
-	}
-	defer dstFile.Close()
-
-	// Copy file contents
-	if _, err := io.Copy(dstFile, srcFile); err != nil {
-		return fmt.Errorf("failed to copy data to %s: %w", dstPath, err)
-	}
-
-	return nil
+	return platform.Init(pc.Git, resourceFiles)
 }
 
-// copyEmbeddedFilesRecursive recursively copies files from an embedded FS to the target directory
-func copyEmbeddedFilesRecursive(embedFS embed.FS, srcDir, dstDir string) error {
-	entries, err := embedFS.ReadDir(srcDir)
-	if err != nil {
-		return fmt.Errorf("failed to read directory %s: %w", srcDir, err)
-	}
-
-	for _, entry := range entries {
-		srcPath := filepath.Join(srcDir, entry.Name())
-		dstPath := filepath.Join(dstDir, entry.Name())
-
-		if entry.IsDir() {
-			// Ensure the destination directory exists
-			if err := os.MkdirAll(dstPath, 0o755); err != nil {
-				return fmt.Errorf("failed to create directory %s: %w", dstPath, err)
-			}
-			// Recurse into subdirectory
-			if err := copyEmbeddedFilesRecursive(embedFS, srcPath, dstPath); err != nil {
-				return err
-			}
-		} else {
-			// Copy individual file
-			if err := copyFile(embedFS, srcPath, dstPath); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func applyPlatformRepo(gitCfg *manifest.GitConfig) error {
-	// Apply changes to the Platform repository, these include Workflow files, configurations, etc...
-	platformRepoDir, err := git.Clone(*gitCfg)
-	if err != nil {
-		return fmt.Errorf("failed to clone platform repository: %w", err)
-	}
-
-	// create a branch with a well known name
-	branchName := "platform-konnect-orchestrator-apply"
-	err = git.CheckoutBranch(platformRepoDir, branchName, *gitCfg)
-	if err != nil {
-		return fmt.Errorf("failed to checkout branch: %w", err)
-	}
-
-	err = copyEmbeddedFilesRecursive(resourceFiles, "resources/platform", platformRepoDir)
-	if err != nil {
-		return fmt.Errorf("failed to copy resource files to platform repository: %w", err)
-	}
-
-	// Detect changes to the repository
-	isClean, err := git.IsClean(platformRepoDir)
-	if err != nil {
-		return fmt.Errorf("failed to check if platform repository is clean: %w", err)
-	}
-	if !isClean {
-		fmt.Println("Changes detected in platform repository")
-		err = git.Add(platformRepoDir, ".")
-		if err != nil {
-			return fmt.Errorf("failed to add files to commit: %w", err)
-		}
-		err = git.Commit(platformRepoDir, "Platform changes via Konnect Orchestrator", *gitCfg.Author)
-		if err != nil {
-			return fmt.Errorf("failed to commit changes: %w", err)
-		}
-		err = git.Push(platformRepoDir, *gitCfg)
-		if err != nil {
-			return fmt.Errorf("failed to push changes: %w", err)
-		}
-
-		gitURL, err := giturl.NewGitURL(*gitCfg.Remote)
-		if err != nil {
-			return fmt.Errorf("failed to parse Git URL: %w", err)
-		}
-
-		_, err = github.CreateOrUpdatePullRequest(
-			context.Background(),
-			gitURL.GetOwnerName(),
-			gitURL.GetRepoName(),
-			branchName,
-			"[Konnect] Konnect Orchestrator applied changes - Platform",
-			"Makes changes for the Platform repository automations, including GitHub Actions and configurations.",
-			*gitCfg.GitHub)
-		if err != nil {
-			return fmt.Errorf("failed to create or update pull request: %w", err)
-		}
-	}
-
+func runAddOrganization(_ *cobra.Command, _ []string) error {
+	// TODO: Add an organization to the konnect/organizations.yaml file
+	// Pre-requisites:
+	// 		We need the platform gith configuration (url and token), either the platform file or args
+	//		The repository must exist
+	//		We prompt the user to provide the following:
+	//			Organization name (we slugify for a YAML key)
+	//			Konnect Token:
+	// 1. Clone the repository locally
+	// 2. Load and add the new organization to the organizations file
+	// 3. Modify the .github/workflow/koctl-apply.yaml file to include
+	//	    env:
+	//			<ORGNAME>_KONNECT_TOKEN: {{ .secrets.<ORGNAME>_KONNECT_TOKEN }}
+	// 4. Write the provided Konnect token to the repository secrets API
+	// 5. File PR
 	return nil
 }
 
@@ -862,7 +796,7 @@ func loadConfigManifest() (*manifest.Orchestrator, error) {
 }
 
 func apply(man *manifest.Orchestrator) error {
-	err := applyPlatformRepo(man.Platform.Git)
+	err := platform.Init(man.Platform.Git, resourceFiles)
 	if err != nil {
 		return fmt.Errorf("failed to apply platform repository changes: %w", err)
 	}

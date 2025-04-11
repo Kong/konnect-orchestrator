@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -13,6 +14,8 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/util"
 	"github.com/google/go-github/v60/github"
+	"golang.org/x/crypto/blake2b"
+	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/oauth2"
 )
 
@@ -495,6 +498,66 @@ func (s *GitHubService) GetUserRepositories(ctx context.Context, token, username
 	}
 
 	return allRepos, nil
+}
+
+func naclEncrypt(recipientPublicKey string, content string) string {
+	// taken from here: https://jefflinse.io/posts/encrypting-github-secrets-using-go/
+	// currently ignoring errors here
+	b, _ := base64.StdEncoding.DecodeString(recipientPublicKey)
+	recipientKey := new([32]byte)
+	copy(recipientKey[:], b)
+	pubKey, privKey, _ := box.GenerateKey(rand.Reader)
+	nonceHash, _ := blake2b.New(24, nil)
+	nonceHash.Write(pubKey[:])
+	nonceHash.Write(recipientKey[:])
+	nonce := new([24]byte)
+	copy(nonce[:], nonceHash.Sum(nil))
+	out := box.Seal(pubKey[:], []byte(content), nonce, recipientKey, privKey)
+	return base64.StdEncoding.EncodeToString(out)
+}
+
+func CreateRepoActionSecret(ctx context.Context, githubConfig *manifest.GitHubConfig, owner, repo, secretName string, secretValue *manifest.Secret) error {
+	token, err := util.ResolveSecretValue(*githubConfig.Token)
+	if err != nil {
+		return err
+	}
+
+	client := CreateGitHubClient(ctx, token)
+
+	repoPubKey, _, err := client.Actions.GetRepoPublicKey(ctx, owner, repo)
+	if err != nil {
+		return fmt.Errorf("failed to get public key: %w", err)
+	}
+
+	s, err := util.ResolveSecretValue(*secretValue)
+	encryptedSecretValue := naclEncrypt(repoPubKey.GetKey(), s)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt secret: %w", err)
+	}
+
+	// Create a new secret
+	secret := &github.EncryptedSecret{
+		Name:           secretName,
+		KeyID:          repoPubKey.GetKeyID(),
+		EncryptedValue: encryptedSecretValue,
+	}
+
+	_, err = client.Actions.CreateOrUpdateRepoSecret(ctx, owner, repo, secret)
+	if err != nil {
+		return fmt.Errorf("failed to create or update secret: %w", err)
+	}
+
+	return nil
+}
+
+func (s *GitHubService) GetActionsSecrets(ctx context.Context, token, owner, repo string) ([]Secrets, error) {
+	client := s.createClient(ctx, token)
+	opts := &github.ListOptions{PerPage: 100}
+	_, _, err := client.Actions.ListRepoSecrets(ctx, owner, repo, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list secrets: %w", err)
+	}
+	return nil, nil
 }
 
 // IsEnterpriseURL checks if a URL is for a GitHub Enterprise instance

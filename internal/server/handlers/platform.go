@@ -409,7 +409,12 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 	owner := gitURL.GetOwnerName()
 	repo := gitURL.GetRepoName()
 
-	_, err = gh.CreateOrUpdatePullRequest(c.Request.Context(), owner, repo, newBranchName, fmt.Sprintf("svc-add: %s", repoInfo.Name), "Adding stuff", *h.platformGitConfig.GitHub)
+	_, err = gh.CreateOrUpdatePullRequest(
+		c.Request.Context(),
+		owner,
+		repo,
+		newBranchName,
+		fmt.Sprintf("[Konnect Orchestrator] - Add Service: %s", repoInfo.Name), "Adding service manifest", *h.platformGitConfig.GitHub)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error creating pull request": err.Error()})
 		return
