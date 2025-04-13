@@ -14,7 +14,7 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/util"
 	"github.com/google/go-github/v60/github"
-	"golang.org/x/crypto/blake2b"
+
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/oauth2"
 )
@@ -499,20 +499,20 @@ func (s *GitHubService) GetUserRepositories(ctx context.Context, token, username
 	return allRepos, nil
 }
 
-func naclEncrypt(recipientPublicKey string, content string) string {
-	// taken from here: https://jefflinse.io/posts/encrypting-github-secrets-using-go/
-	// currently ignoring errors here
-	b, _ := base64.StdEncoding.DecodeString(recipientPublicKey)
-	recipientKey := new([32]byte)
-	copy(recipientKey[:], b)
-	pubKey, privKey, _ := box.GenerateKey(rand.Reader)
-	nonceHash, _ := blake2b.New(24, nil)
-	nonceHash.Write(pubKey[:])
-	nonceHash.Write(recipientKey[:])
-	nonce := new([24]byte)
-	copy(nonce[:], nonceHash.Sum(nil))
-	out := box.Seal(pubKey[:], []byte(content), nonce, recipientKey, privKey)
-	return base64.StdEncoding.EncodeToString(out)
+func naclEncrypt(publicKey string, secretValue string) string {
+	b, err := base64.StdEncoding.DecodeString(publicKey)
+	if err != nil {
+		panic(err)
+	}
+	var key [32]byte
+	copy(key[:], b)
+
+	encrypted, err := box.SealAnonymous(nil, []byte(secretValue), &key, rand.Reader)
+	if err != nil {
+		panic(err)
+	}
+
+	return base64.StdEncoding.EncodeToString(encrypted)
 }
 
 func CreateRepoActionSecretFromString(ctx context.Context, githubConfig *manifest.GitHubConfig, owner, repo, secretName, secretValue string) error {
