@@ -26,5 +26,6 @@ jobs:
         id: koctl-apply
         env: 
           GITHUB_TOKEN: ${{ secrets.KONNECT_ORCHESTRATOR_GITHUB_TOKEN }}
+          GITHUB_REPO_URL: "https://github.com/${{ github.repository }}"
         run: |
           koctl apply 

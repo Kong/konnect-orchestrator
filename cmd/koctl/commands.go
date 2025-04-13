@@ -743,16 +743,34 @@ func loadConfigManifest() (*manifest.Orchestrator, error) {
 		}
 	}
 
+	if man.Platform == nil || man.Platform.Git == nil {
+		// if we haven't been configured w/ a platform config, let's look for
+		// some GitHub action environment variables which could be set if we're running in a runner
+		remote := os.Getenv("GITHUB_REPO_URL")
+		token := os.Getenv("GITHUB_TOKEN")
+		authorName := "Konnect Orchestrator"
+		authorEmail := "ko@konghq.com"
+		man.Platform = &manifest.Platform{
+			Git: &manifest.GitConfig{
+				Remote: &remote,
+				Author: &manifest.Author{
+					Name:  &authorName,
+					Email: &authorEmail,
+				},
+				GitHub: &manifest.GitHubConfig{
+					Token: &manifest.Secret{
+						Value: token,
+						Type:  "literal",
+					},
+				},
+			},
+		}
+	}
+
 	return &man, nil
 }
 
 func apply(man *manifest.Orchestrator) error {
-	err := platform.Init(man.Platform.Git, resourceFiles)
-	if err != nil {
-		return fmt.Errorf("failed to apply platform repository changes: %w", err)
-	}
-
-	// Process each organization
 	for orgName, orgConfig := range man.Organizations {
 		if err := applyOrganization(orgName, *man.Platform.Git, *orgConfig, man.Teams); err != nil {
 			return err
