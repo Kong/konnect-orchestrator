@@ -316,8 +316,12 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 	}
 
 	if man.Teams == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"no teams defined": err.Error()})
-		return
+		man.Teams = make(map[string]*manifest.Team)
+		man.Teams[repoInfo.Team] = &manifest.Team{
+			Services:    make(map[string]*manifest.Service),
+			Users:       []string{},
+			Description: &repoInfo.Team,
+		}
 	}
 
 	var prodBranch = "main"
