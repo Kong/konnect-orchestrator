@@ -18,12 +18,31 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/server/middleware"
 )
 
+func validateConfig(c *config.Config) error {
+	// Validate critical configuration
+	if c.GitHubClientID == "" || c.GitHubClientSecret == "" {
+		return fmt.Errorf("missing GitHub OAuth credentials")
+	}
+
+	if c.Environment == "production" && c.JWTSecret == "your-secret-key-change-in-production" {
+		return fmt.Errorf("default JWT secret used in production environment")
+	}
+
+	if c.Environment == "production" && c.SessionSecret == "session-secret-change-in-production" {
+		return fmt.Errorf("default session secret used in production environment")
+	}
+	return nil
+}
+
 func RunServer(platformGitConfig manifest.GitConfig,
 	teamsConfigPath, orgsConfigPath, version, commit, date string) error {
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
+	}
+	if err = validateConfig(cfg); err != nil {
+		log.Fatalf("Invalid configuration: %v", err)
 	}
 
 	// Set up services

@@ -1,0 +1,221 @@
+name: Konnect - Stage decK changes 
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "konnect/**/kong-from-oas.yaml"
+
+jobs:
+  merge-deck-files:
+    name: Merge `kong-from-oas.yaml` files
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.collect-context.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Collect modified files
+        id: changed-deck-files
+        uses: kong/changed-files@4edd678ac3f81e2dc578756871e4d00c19191daf
+        with:
+          files: |
+            konnect/**/kong-from-oas.yaml
+
+      - name: Setup deck
+        if: steps.changed-deck-files.outputs.any_changed == 'true'
+        uses: kong/setup-deck@v1
+        with:
+          deck-version: '1.44.1'
+          wrapper: false
+      
+      - name: Merge and collect team/environment/service pairs
+        id: collect-context
+        run: |
+          CHANGED_FILES="${{ steps.changed-deck-files.outputs.all_changed_files }}"
+          echo "Changed files: $CHANGED_FILES"
+
+          declare -A TEAM_ENV_PAIRS
+          OUTPUT_MATRIX=()
+          MODIFIED_FILES=()
+
+          for FILE in $CHANGED_FILES; do
+            echo "Processing file: $FILE"
+            ORG=$(echo "$FILE" | grep -oP 'konnect/[^/]+' | cut -d '/' -f2)
+            TEAM=$(echo "$FILE" | grep -oP 'teams/[^/]+' | cut -d '/' -f2)
+            ENV=$(echo "$FILE" | grep -oP 'envs/[^/]+' | cut -d '/' -f2)
+            SERVICE_NAME=$(echo "$FILE" | grep -oP 'services/[^/]+' | cut -d '/' -f2)
+            ENV_DIR=$(dirname "$FILE" | grep -oP 'konnect/[^/]*/envs/[^/]*/teams/[^/]*')
+
+            if [[ -n "$TEAM" && -n "$ENV" && -n "$SERVICE_NAME" && -n "$ENV_DIR" ]]; then
+              KEY="$ENV_DIR"
+              if [[ -z "${TEAM_ENV_PAIRS[$KEY]}" ]]; then
+                TEAM_ENV_PAIRS["$KEY"]=1
+                OUTPUT_FILE="$ENV_DIR/kong.yaml"
+                echo "Processing: Team=$TEAM, Environment=$ENV, Service=$SERVICE_NAME, Directory=$ENV_DIR"
+
+                # Find and merge all kong-from-oas.yaml files under this directory
+                KONG_FILES=$(find "$ENV_DIR" -name 'kong-from-oas.yaml')
+                if [[ -n "$KONG_FILES" ]]; then
+                  deck file merge $KONG_FILES -o "$OUTPUT_FILE"
+                  
+                  if [[ -f "$OUTPUT_FILE" ]]; then
+                    # Check if the file is tracked in Git
+                    if git ls-files --error-unmatch "$OUTPUT_FILE" &>/dev/null; then
+                      # The file is tracked, check if it changed
+                      if ! git diff --quiet "$OUTPUT_FILE"; then
+                        echo "File modified: $OUTPUT_FILE"
+                        MODIFIED_FILES+=("$OUTPUT_FILE")
+                        OUTPUT_MATRIX+=("{\"org\":\"$ORG\",\"team\":\"$TEAM\",\"env\":\"$ENV\",\"service\":\"$SERVICE_NAME\",\"file\":\"$OUTPUT_FILE\"}")
+                      else
+                        echo "No changes detected in tracked file: $OUTPUT_FILE"
+                        # No action needed if you only care about changed or newly created files
+                      fi
+                    else
+                      # The file is not tracked, so it's newly created
+                      echo "File created: $OUTPUT_FILE"
+                      MODIFIED_FILES+=("$OUTPUT_FILE")
+                      OUTPUT_MATRIX+=("{\"org\":\"$ORG\",\"team\":\"$TEAM\",\"env\":\"$ENV\",\"service\":\"$SERVICE_NAME\",\"file\":\"$OUTPUT_FILE\"}")
+                    fi
+                  else
+                    echo "Failed to create merged file: $OUTPUT_FILE"
+                    exit 1
+                  fi
+                else
+                  echo "No kong-from-oas.yaml files found under: $ENV_DIR"
+                fi
+              else
+                echo "Skipping already processed team-environment: $KEY"
+              fi
+            else
+              echo "Skipping file (missing required components): $FILE"
+            fi
+          done
+
+          # Upload modified files as artifacts
+          for FILE in "${MODIFIED_FILES[@]}"; do
+            mkdir -p upload_dir/$(dirname "$FILE")
+            cp "$FILE" upload_dir/"$FILE"
+          done
+
+          MATRIX=$(printf '[%s]' "$(printf '%s,' "${OUTPUT_MATRIX[@]}" | sed 's/,$//')")
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Upload modified files as artifacts
+        if: ${{ steps.collect-context.outputs.matrix != '[]' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: modified-kong-yaml-files
+          path: upload_dir/
+
+  process-changes:
+    name: Process and Stage Diffs
+    needs: [merge-deck-files]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        context: ${{ fromJson(needs.merge-deck-files.outputs.matrix) }}
+      max-parallel: 1
+      fail-fast: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download modified files
+        uses: actions/download-artifact@v4
+        with:
+          name: modified-kong-yaml-files
+          path: ./download_dir/
+
+      - name: Place modified files in working directory
+        run: |
+          FILE_PATH="${{ matrix.context.file }}"
+          TARGET_DIR=$(dirname "$FILE_PATH")
+          mkdir -p "$TARGET_DIR"
+          cp "download_dir/$FILE_PATH" "$FILE_PATH"
+          echo "Wrote file: $FILE_PATH"
+
+      - name: Stage modified file
+        run: |
+          FILE_PATH="${{ matrix.context.file }}"
+          git add "$FILE_PATH"
+          echo "Staged file: $FILE_PATH"
+
+      - name: Extract context from matrix
+        id: extract-context
+        run: |
+          ORG="${{ matrix.context.org }}"
+          TEAM="${{ matrix.context.team }}"
+          ENV="${{ matrix.context.env }}"
+          FILE_PATH="${{ matrix.context.file }}"
+          DIR=$(dirname "$FILE_PATH")
+          echo "Processing: Org=$ORG, Team=$TEAM, Environment=$ENV, File=$FILE_PATH"
+          echo "org=$ORG" >> $GITHUB_OUTPUT
+          echo "team=$TEAM" >> $GITHUB_OUTPUT
+          echo "env=$ENV" >> $GITHUB_OUTPUT
+          echo "file=$FILE_PATH" >> $GITHUB_OUTPUT
+          echo "dir=$DIR" >> $GITHUB_OUTPUT
+
+      - name: Setup deck
+        uses: kong/setup-deck@v1
+        with:
+          deck-version: '1.42.0'
+          wrapper: false
+
+      - name: Run deck diff
+        id: deck-diff
+        env:
+          KONNECT_TOKEN: ${{ secrets[format('{0}_KONNECT_TOKEN', matrix.context.org)] }}
+        run: |
+          ORG="${{ matrix.context.org }}"
+          TEAM="${{ steps.extract-context.outputs.team }}"
+          ENV="${{ steps.extract-context.outputs.env }}"
+          FILE_PATH="${{ steps.extract-context.outputs.file }}"
+          CONTROL_PLANE_NAME="${TEAM}-${ENV}"
+
+          # deck diff results in a multi-line output, which requires some
+          #  bash gymnastics to handle and pass through to the next step
+          #  See: https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#example-of-a-multiline-string
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "DIFF<<$EOF" >> $GITHUB_ENV
+          
+          # Temporarily allow failures
+          set +e
+          deck gateway diff \
+            --konnect-control-plane-name "$CONTROL_PLANE_NAME" \
+            --konnect-token "$KONNECT_TOKEN" \
+            "$FILE_PATH" >> $GITHUB_ENV
+          STATUS=$?
+          set -e
+          
+          # Always append the EOF marker, regardless of the diff command's success
+          echo "$EOF" >> $GITHUB_ENV
+          if [[ $STATUS -ne 0 ]]; then
+            echo "::error::Failed to run deck diff"
+            exit $STATUS
+          fi
+
+      - name: Create PR for changes
+        uses: peter-evans/create-pull-request@v5
+        with:
+          title: "[Konnect] [${{ steps.extract-context.outputs.env }}] - ${{ steps.extract-context.outputs.team }} Staged decK Changes"
+          branch: "stage-deck-change/${{ steps.extract-context.outputs.DIR }}"
+          labels: "${{ steps.extract-context.outputs.team }},${{ steps.extract-context.outputs.env }},kong,konnect"
+          commit-message: "Updated decK Configurations for ${{ steps.extract-context.outputs.DIR }}"
+          body: |
+            This PR was automatically generated by the 'Konnect - Stage decK changes' workflow.
+            - Organization: ${{ steps.extract-context.outputs.org }}
+            - Team: ${{ steps.extract-context.outputs.team }}
+            - Environment: ${{ steps.extract-context.outputs.env }}
+            - File: ${{ steps.extract-context.outputs.file }}
+            - Directory: ${{ steps.extract-context.outputs.DIR }}
+
+            This PR includes the following proposed changes targeting the 
+            **${{ steps.extract-context.outputs.team }}-${{ steps.extract-context.outputs.env }}** Control Plane.
+            
+            ```
+            ${{ env.DIFF }}
+            ```

@@ -29,6 +29,12 @@ type Config struct {
 
 	// Session configuration - added for CSRF protection
 	SessionSecret string
+
+	// Platform Repository configuration
+	PlatformRepoOwnerName  string
+	PlatformRepoOwnerEmail string
+	PlatformRepoURL        string
+	PlatformRepoGHToken    string
 }
 
 // LoadConfig loads configuration from environment variables
@@ -65,19 +71,12 @@ func LoadConfig() (*Config, error) {
 
 		// Session configuration - added for CSRF protection
 		SessionSecret: getEnv("SESSION_SECRET", "session-secret-change-in-production"),
-	}
 
-	// Validate critical configuration
-	if config.GitHubClientID == "" || config.GitHubClientSecret == "" {
-		return nil, fmt.Errorf("missing GitHub OAuth credentials")
-	}
-
-	if config.Environment == "production" && config.JWTSecret == "your-secret-key-change-in-production" {
-		return nil, fmt.Errorf("default JWT secret used in production environment")
-	}
-
-	if config.Environment == "production" && config.SessionSecret == "session-secret-change-in-production" {
-		return nil, fmt.Errorf("default session secret used in production environment")
+		// Platform Repository configuration
+		PlatformRepoOwnerName:  getEnv("PLATFORM_REPO_OWNER_NAME", "Konnect Orchestrator"),
+		PlatformRepoOwnerEmail: getEnv("PLATFORM_REPO_OWNER_EMAIL", "ko@konghq.com"),
+		PlatformRepoURL:        getEnv("PLATFORM_REPO_URL", ""),
+		PlatformRepoGHToken:    getEnv("PLATFORM_REPO_GITHUB_TOKEN", ""),
 	}
 
 	return config, nil

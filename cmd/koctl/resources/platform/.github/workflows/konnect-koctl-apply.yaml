@@ -1,0 +1,30 @@
+name: Konnect - koctl apply
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "konnect/teams.yaml"
+      - "konnect/organizations.yaml"
+
+jobs:
+  koctl-apply:
+    name: Apply configuration to Konnect 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup koctl
+        uses: jaxxstorm/action-install-gh-release@v2.0.0
+        with:
+          repo: Kong/konnect-orchestrator
+          tag: v0.4.0
+
+      - name: Run koctl apply
+        id: koctl-apply
+        env: 
+          GITHUB_TOKEN: ${{ secrets.KONNECT_ORCHESTRATOR_GITHUB_TOKEN }}
+        run: |
+          koctl apply 

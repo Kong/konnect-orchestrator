@@ -1,0 +1,37 @@
+name: Konnect - decK conformance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+jobs:
+  lint-deck: 
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get changed deck files
+        id: changed-deck-files
+        uses: kong/changed-files@4edd678ac3f81e2dc578756871e4d00c19191daf
+        with:
+          files: |
+            konnect/**/kong-from-oas.yaml
+
+      - name: Setup deck
+        uses: kong/setup-deck@v1
+        with:
+          deck-version: '1.44.1'
+          wrapper: false
+
+      - name: Lint decK files 
+        if: steps.changed-deck-files.outputs.any_changed == 'true' 
+        env:
+          CHANGED_DECK_FILES: ${{ steps.changed-deck-files.outputs.all_changed_files }}
+        run: |
+          for FILE in ${CHANGED_DECK_FILES}; do
+            deck file lint -s "$FILE" konnect/deck-file-rules.yaml
+          done

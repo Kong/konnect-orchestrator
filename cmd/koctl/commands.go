@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/Kong/konnect-orchestrator/internal/config"
 	"github.com/Kong/konnect-orchestrator/internal/deck/patch"
 	"github.com/Kong/konnect-orchestrator/internal/gateway"
 	"github.com/Kong/konnect-orchestrator/internal/git"
@@ -25,6 +25,7 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/platform"
 	"github.com/Kong/konnect-orchestrator/internal/reports"
 	"github.com/Kong/konnect-orchestrator/internal/server"
+	"github.com/Kong/konnect-orchestrator/internal/util"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
 	kkInternal "github.com/Kong/sdk-konnect-go-internal"
@@ -39,7 +40,6 @@ var resourceFiles embed.FS
 
 const (
 	defaultOrchestratorPath = "konnect/"
-	defaultPlatformFilePath = defaultOrchestratorPath + "platform.yaml"
 	defaultTeamsFilePath    = defaultOrchestratorPath + "teams.yaml"
 	defaultOrgsFilePath     = defaultOrchestratorPath + "organizations.yaml"
 )
@@ -47,9 +47,10 @@ const (
 var (
 	loopInterval         int
 	wholeFileArg         string
-	platformFileArg      string
 	teamsFileArg         string
 	organizationsFileArg string
+	orgKonnectTokenArg   string
+	orgNameArg           string
 	version              = "dev"
 	commit               = "unknown"
 	date                 = "unknown"
@@ -113,10 +114,6 @@ func init() {
 		"file",
 		"",
 		"Path to the configuration file. This is a convenience flag to apply the whole configuration in one file")
-	applyCmd.Flags().StringVar(&platformFileArg,
-		"platform",
-		"./"+defaultPlatformFilePath,
-		"Path to the platform configuration file. Superseded by --file")
 	applyCmd.Flags().StringVar(&teamsFileArg,
 		"teams",
 		"./"+defaultTeamsFilePath,
@@ -128,15 +125,16 @@ func init() {
 	applyCmd.Flags().IntVarP(&loopInterval,
 		"loop", "l", 0, "Run apply in a loop with specified interval in seconds (0 = run once)")
 
-	runCmd.Flags().StringVar(&platformFileArg,
-		"platform",
-		"./"+defaultPlatformFilePath,
-		"Path to the platform configuration file.")
-
-	initCmd.Flags().StringVar(&platformFileArg,
-		"platform",
-		"./"+defaultPlatformFilePath,
-		"Path to the platform configuration file.")
+	addOrganizationCmd.Flags().StringVar(&orgKonnectTokenArg,
+		"konnect-token",
+		"",
+		"Konnect token for the organization.")
+	addOrganizationCmd.Flags().StringVar(&orgNameArg,
+		"org-name",
+		"",
+		"Name of the new organization.")
+	addOrganizationCmd.MarkFlagRequired("konnect-token")
+	addOrganizationCmd.MarkFlagRequired("org-name")
 
 	cobra.OnInitialize(initConfig)
 
@@ -145,31 +143,6 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(initCmd)
-}
-
-func readConfigSection(filePath string, out interface{}) error {
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to make absolute path: %w", err)
-	}
-
-	if _, err := os.Stat(absPath); err != nil {
-		return fmt.Errorf("file not accessible: %w", err)
-	}
-
-	bytes, err := os.ReadFile(absPath)
-	if err != nil {
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Try YAML first
-	if err := yaml.Unmarshal(bytes, out); err != nil {
-		// Fall back to JSON if YAML fails
-		if jsonErr := json.Unmarshal(bytes, out); jsonErr != nil {
-			return fmt.Errorf("failed to parse file as YAML or JSON: %w", err)
-		}
-	}
-	return nil
 }
 
 func applyService(
@@ -691,41 +664,31 @@ func applyOrganization(
 	return nil
 }
 
-func runInit(_ *cobra.Command, _ []string) error {
-	pc, err := loadPlatformManifest(platformFileArg)
-	if err != nil {
-		return err
-	}
-	return platform.Init(pc.Git, resourceFiles)
-}
-
-func runAddOrganization(_ *cobra.Command, _ []string) error {
-	// TODO: Add an organization to the konnect/organizations.yaml file
-	// Pre-requisites:
-	// 		We need the platform gith configuration (url and token), either the platform file or args
-	//		The repository must exist
-	//		We prompt the user to provide the following:
-	//			Organization name (we slugify for a YAML key)
-	//			Konnect Token:
-	// 1. Clone the repository locally
-	// 2. Load and add the new organization to the organizations file
-	// 3. Modify the .github/workflow/koctl-apply.yaml file to include
-	//	    env:
-	//			<ORGNAME>_KONNECT_TOKEN: {{ .secrets.<ORGNAME>_KONNECT_TOKEN }}
-	// 4. Write the provided Konnect token to the repository secrets API
-	// 5. File PR
-	return nil
-}
-
 func loadPlatformManifest(path string) (*manifest.Platform, error) {
 	var rv manifest.Orchestrator
-	err := readConfigSection(path, &rv)
+	err := util.ReadConfigFile(path, &rv)
 	return rv.Platform, err
+}
+
+func loadPlatformGitCfgFromConfig(config *config.Config) (manifest.GitConfig, error) {
+	var gitCfg manifest.GitConfig
+	gitCfg.Remote = &config.PlatformRepoURL
+	gitCfg.Author = &manifest.Author{
+		Name:  &config.PlatformRepoOwnerName,
+		Email: &config.PlatformRepoOwnerEmail,
+	}
+	gitCfg.GitHub = &manifest.GitHubConfig{
+		Token: &manifest.Secret{
+			Value: config.PlatformRepoGHToken,
+			Type:  "literal",
+		},
+	}
+	return gitCfg, nil
 }
 
 func loadConfigManifest() (*manifest.Orchestrator, error) {
 	var man manifest.Orchestrator
-	var wholeFilePath, platformFilePath, teamsFilePath, organizationsFilePath string
+	var wholeFilePath, teamsFilePath, organizationsFilePath string
 	if wholeFileArg != "" {
 		var err error
 		wholeFilePath, err = filepath.Abs(wholeFileArg)
@@ -737,14 +700,6 @@ func loadConfigManifest() (*manifest.Orchestrator, error) {
 		}
 	} else {
 		var err error
-		platformFilePath, err = filepath.Abs(platformFileArg)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve platform file path: %w", err)
-		}
-		if _, err := os.Stat(platformFilePath); err != nil {
-			return nil, fmt.Errorf("failed to access file %s: %w", platformFilePath, err)
-		}
-
 		if teamsFileArg != "" {
 			teamsFilePath, err = filepath.Abs(teamsFileArg)
 			if err != nil {
@@ -767,16 +722,12 @@ func loadConfigManifest() (*manifest.Orchestrator, error) {
 	}
 
 	if wholeFilePath != "" {
-		if err := readConfigSection(wholeFilePath, &man); err != nil {
+		if err := util.ReadConfigFile(wholeFilePath, &man); err != nil {
 			return nil, fmt.Errorf("failed to read whole configuration: %w", err)
 		}
 	} else {
-		if err := readConfigSection(platformFilePath, &man); err != nil {
-			return nil, fmt.Errorf("failed to read platform configuration: %w", err)
-		}
-
 		if teamsFilePath != "" {
-			if err := readConfigSection(teamsFilePath, &man); err != nil {
+			if err := util.ReadConfigFile(teamsFilePath, &man); err != nil {
 				return nil, fmt.Errorf("failed to read teams configuration: %w", err)
 			}
 		} else {
@@ -784,7 +735,7 @@ func loadConfigManifest() (*manifest.Orchestrator, error) {
 		}
 
 		if organizationsFilePath != "" {
-			if err := readConfigSection(organizationsFilePath, &man); err != nil {
+			if err := util.ReadConfigFile(organizationsFilePath, &man); err != nil {
 				return nil, fmt.Errorf("failed to read organizations configuration: %w", err)
 			}
 		} else {
@@ -813,8 +764,48 @@ func apply(man *manifest.Orchestrator) error {
 	return nil
 }
 
-func runApply(_ *cobra.Command, _ []string) error {
+func validateConfig(c *config.Config) error {
+	// Validate critical configuration
+	if c.PlatformRepoGHToken == "" {
+		return fmt.Errorf("missing platform repository token")
+	}
+	if c.PlatformRepoURL == "" {
+		return fmt.Errorf("missing platform repository URL")
+	}
+	return nil
+}
 
+func runInit(_ *cobra.Command, _ []string) error {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	if err = validateConfig(cfg); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+	gitCfg, err := loadPlatformGitCfgFromConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to load platform git configuration: %w", err)
+	}
+	return platform.Init(&gitCfg, resourceFiles)
+}
+
+func runAddOrganization(_ *cobra.Command, _ []string) error {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	if err = validateConfig(cfg); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+	gitCfg, err := loadPlatformGitCfgFromConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to load platform git configuration: %w", err)
+	}
+	return platform.AddOrganization(&gitCfg, orgNameArg, orgKonnectTokenArg)
+}
+
+func runApply(_ *cobra.Command, _ []string) error {
 	// We're not looping, run once and exit
 	if loopInterval == 0 {
 		man, err := loadConfigManifest()
@@ -841,11 +832,18 @@ func runApply(_ *cobra.Command, _ []string) error {
 }
 
 func runRun(_ *cobra.Command, _ []string) error {
-	platform, err := loadPlatformManifest(platformFileArg)
+	cfg, err := config.LoadConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-	return server.RunServer(*platform.Git,
+	if err = validateConfig(cfg); err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+	gitCfg, err := loadPlatformGitCfgFromConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to load platform git configuration: %w", err)
+	}
+	return server.RunServer(gitCfg,
 		defaultTeamsFilePath,
 		defaultOrgsFilePath,
 		version, commit, date)

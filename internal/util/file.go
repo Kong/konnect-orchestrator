@@ -2,10 +2,13 @@ package util
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/yaml.v3"
 )
 
 func CopyFile(embedFS embed.FS, srcPath, dstPath string) error {
@@ -61,6 +64,31 @@ func CopyEmbeddedFilesRecursive(embedFS embed.FS, srcDir, dstDir string) error {
 			if err := CopyFile(embedFS, srcPath, dstPath); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func ReadConfigFile(filePath string, out interface{}) error {
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to make absolute path: %w", err)
+	}
+
+	if _, err := os.Stat(absPath); err != nil {
+		return fmt.Errorf("file not accessible: %w", err)
+	}
+
+	bytes, err := os.ReadFile(absPath)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	// Try YAML first
+	if err := yaml.Unmarshal(bytes, out); err != nil {
+		// Fall back to JSON if YAML fails
+		if jsonErr := json.Unmarshal(bytes, out); jsonErr != nil {
+			return fmt.Errorf("failed to parse file as YAML or JSON: %w", err)
 		}
 	}
 	return nil

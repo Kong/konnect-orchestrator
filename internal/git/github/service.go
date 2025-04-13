@@ -233,7 +233,6 @@ func (s *GitHubService) GetRepositoryContent(ctx context.Context, token, owner, 
 		sanitizedPath,
 		&github.RepositoryContentGetOptions{Ref: ref},
 	)
-
 	if err != nil {
 		return nil, err
 	}
@@ -516,7 +515,7 @@ func naclEncrypt(recipientPublicKey string, content string) string {
 	return base64.StdEncoding.EncodeToString(out)
 }
 
-func CreateRepoActionSecret(ctx context.Context, githubConfig *manifest.GitHubConfig, owner, repo, secretName string, secretValue *manifest.Secret) error {
+func CreateRepoActionSecretFromString(ctx context.Context, githubConfig *manifest.GitHubConfig, owner, repo, secretName, secretValue string) error {
 	token, err := util.ResolveSecretValue(*githubConfig.Token)
 	if err != nil {
 		return err
@@ -529,11 +528,7 @@ func CreateRepoActionSecret(ctx context.Context, githubConfig *manifest.GitHubCo
 		return fmt.Errorf("failed to get public key: %w", err)
 	}
 
-	s, err := util.ResolveSecretValue(*secretValue)
-	encryptedSecretValue := naclEncrypt(repoPubKey.GetKey(), s)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt secret: %w", err)
-	}
+	encryptedSecretValue := naclEncrypt(repoPubKey.GetKey(), secretValue)
 
 	// Create a new secret
 	secret := &github.EncryptedSecret{
@@ -548,6 +543,14 @@ func CreateRepoActionSecret(ctx context.Context, githubConfig *manifest.GitHubCo
 	}
 
 	return nil
+}
+
+func CreateRepoActionSecret(ctx context.Context, githubConfig *manifest.GitHubConfig, owner, repo, secretName string, secretValue *manifest.Secret) error {
+	s, err := util.ResolveSecretValue(*secretValue)
+	if err != nil {
+		return err
+	}
+	return CreateRepoActionSecretFromString(ctx, githubConfig, owner, repo, secretName, s)
 }
 
 func (s *GitHubService) GetActionsSecrets(ctx context.Context, token, owner, repo string) ([]Secrets, error) {

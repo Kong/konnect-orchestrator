@@ -5,12 +5,14 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/Kong/konnect-orchestrator/internal/git"
 	"github.com/Kong/konnect-orchestrator/internal/git/github"
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/util"
 	giturl "github.com/kubescape/go-git-url"
+	"gopkg.in/yaml.v3"
 )
 
 func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
@@ -60,6 +62,11 @@ func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
 		return fmt.Errorf("failed to copy default konnect/ files: %w", err)
 	}
 
+	err = git.Add(platformRepoDir, ".")
+	if err != nil {
+		return fmt.Errorf("failed to add files to git: %w", err)
+	}
+
 	// 8. File PR
 	// Detect changes to the repository
 	isClean, err := git.IsClean(platformRepoDir)
@@ -103,4 +110,239 @@ func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
 	}
 
 	return nil
+}
+
+func AddOrganization(
+	platformGitCfg *manifest.GitConfig,
+	orgName,
+	konnectToken string,
+) error {
+	// TODO: Add an organization to the konnect/organizations.yaml file
+	// Pre-requisites:
+	// 		We need the platform gith configuration (url and token), either the platform file or args
+	//		The repository must exist
+	//		We prompt the user to provide the following:
+	//			Organization name (we slugify for a YAML key)
+	//			Konnect Token:
+
+	// 1. Clone the repository locally
+	gitURL, err := giturl.NewGitURL(*platformGitCfg.Remote)
+	if err != nil {
+		return fmt.Errorf("failed to parse Git URL: %w", err)
+	}
+
+	platformRepoDir, err := git.Clone(*platformGitCfg)
+	if err != nil {
+		return fmt.Errorf("failed to clone platform repository: %w", err)
+	}
+
+	branchName := fmt.Sprintf("konnect-orchestrator-add-org-%s", orgName)
+	err = git.CheckoutBranch(platformRepoDir, branchName, *platformGitCfg)
+	if err != nil {
+		return fmt.Errorf("failed to checkout branch: %w", err)
+	}
+
+	konnectPath := platformRepoDir + "/konnect"
+	organizationsFilePath := konnectPath + "/organizations.yaml"
+	konnectTokenEnvVarName := strings.ToUpper(orgName) + "_KONNECT_TOKEN"
+
+	// 2. Load the organizations file into a manifest struct
+	var man manifest.Orchestrator
+	if err := util.ReadConfigFile(organizationsFilePath, &man); err != nil {
+		return fmt.Errorf("failed to read organizations configuration: %w", err)
+	}
+
+	if man.Organizations == nil {
+		man.Organizations = make(map[string]*manifest.Organization)
+	}
+
+	// 2a. Add the new organization to the organizations file
+	man.Organizations[orgName] = &manifest.Organization{
+		AccessToken: manifest.Secret{
+			Value: konnectTokenEnvVarName,
+			Type:  "env",
+		},
+		Environments: map[string]*manifest.Environment{
+			"dev": {Type: "DEV", Region: "us"},
+			"prd": {Type: "PROD", Region: "us"},
+		},
+	}
+
+	// 2b. Write the updated organizations file back to the repository
+	data, err := yaml.Marshal(&man)
+	if err != nil {
+		return fmt.Errorf("failed to marshal organizations configuration: %w", err)
+	}
+
+	file, err := os.Create(organizationsFilePath)
+	if err != nil {
+		return fmt.Errorf("error creating file: %w", err)
+	}
+	defer file.Close() // Ensure that the file will be closed at the end
+
+	// Write the YAML data to the file
+	_, err = file.Write(data)
+	if err != nil {
+		return fmt.Errorf("error writing to file: %w", err)
+	}
+
+	// 3. Modify the workflow file to include
+	//	    env:
+	//			<ORGNAME>_KONNECT_TOKEN: {{ .secrets.<ORGNAME>_KONNECT_TOKEN }}
+	// in the koctl apply step
+	workflowFilePath := platformRepoDir + "/.github/workflows/konnect-koctl-apply.yaml"
+
+	fd, err := os.ReadFile(workflowFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read workflow file: %w", err)
+	}
+	var root yaml.Node
+	if err := yaml.Unmarshal(fd, &root); err != nil {
+		return fmt.Errorf("failed to unmarshal workflow file: %w", err)
+	}
+
+	// Find the jobs > build > koctlSteps
+	koctlSteps := findMapValuePath(root.Content[0],
+		"jobs", "koctl-apply", "steps")
+	if koctlSteps == nil || koctlSteps.Kind != yaml.SequenceNode {
+		return fmt.Errorf("failed to find steps in workflow file")
+	}
+
+	applyStep := findStepByID(koctlSteps, "koctl-apply")
+	if applyStep == nil {
+		return fmt.Errorf("failed to find koctl-apply step in workflow file")
+	}
+
+	koctlApplyStepEnv := findMapValue(applyStep, "env")
+	if koctlApplyStepEnv == nil {
+		koctlApplyStepEnv = &yaml.Node{
+			Kind:    yaml.MappingNode,
+			Content: []*yaml.Node{},
+		}
+		applyStep.Content = append(applyStep.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: "env"}, koctlApplyStepEnv)
+	}
+
+	setEnvVariable(koctlApplyStepEnv, konnectTokenEnvVarName, fmt.Sprintf("${{secrets.%s}}", konnectTokenEnvVarName))
+
+	out, err := yaml.Marshal(&root)
+	if err != nil {
+		return fmt.Errorf("failed to marshal workflow file: %w", err)
+	}
+	err = os.WriteFile(workflowFilePath, out, 0o600)
+	if err != nil {
+		return fmt.Errorf("failed to write workflow file: %w", err)
+	}
+
+	// Detect changes to the repository
+	isClean, err := git.IsClean(platformRepoDir)
+	if err != nil {
+		return fmt.Errorf("failed to check if platform repository is clean: %w", err)
+	}
+	if !isClean {
+		if err = git.Add(platformRepoDir, "."); err != nil {
+			return fmt.Errorf("failed to add files to git: %w", err)
+		}
+		err = git.Commit(platformRepoDir, "Konnect Orchestrator initializing the platform repository", *platformGitCfg.Author)
+		if err != nil {
+			return fmt.Errorf("failed to commit changes: %w", err)
+		}
+		err = git.Push(platformRepoDir, *platformGitCfg)
+		if err != nil {
+			return fmt.Errorf("failed to push changes: %w", err)
+		}
+
+		_, err = github.CreateOrUpdatePullRequest(
+			context.Background(),
+			gitURL.GetOwnerName(),
+			gitURL.GetRepoName(),
+			branchName,
+			fmt.Sprintf("[Konnect Orchestrator] - Add %s Organization", orgName),
+			`The Konnect Orchestrator Add Organization function was executed and 
+			 filed this PR to add a new organization to the Platform repository`,
+			*platformGitCfg.GitHub)
+		if err != nil {
+			return fmt.Errorf("failed to create or update pull request: %w", err)
+		}
+	}
+
+	// 9. Write the provided GitHub auth token to the repository secrets API
+	err = github.CreateRepoActionSecretFromString(
+		context.Background(),
+		platformGitCfg.GitHub,
+		gitURL.GetOwnerName(),
+		gitURL.GetRepoName(),
+		konnectTokenEnvVarName,
+		konnectToken)
+	if err != nil {
+		return fmt.Errorf("failed to create GitHub secret: %w", err)
+	}
+
+	// 4. Write the provided Konnect token to the repository secrets API
+	// 5. File PR
+	return nil
+}
+
+// Looks up nested keys like jobs > build > steps
+func findMapValuePath(root *yaml.Node, keys ...string) *yaml.Node {
+	node := root
+	for _, key := range keys {
+		node = findMapValue(node, key)
+		if node == nil {
+			return nil
+		}
+	}
+	return node
+}
+
+// Finds a value in a map node
+func findMapValue(mapNode *yaml.Node, key string) *yaml.Node {
+	if mapNode.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i < len(mapNode.Content); i += 2 {
+		k := mapNode.Content[i]
+		v := mapNode.Content[i+1]
+		if k.Value == key {
+			return v
+		}
+	}
+	return nil
+}
+
+// findStepByID returns the step node with a given id
+func findStepByID(steps *yaml.Node, targetID string) *yaml.Node {
+	if steps.Kind != yaml.SequenceNode {
+		return nil
+	}
+
+	for _, step := range steps.Content {
+		if step.Kind != yaml.MappingNode {
+			continue
+		}
+		for i := 0; i < len(step.Content); i += 2 {
+			k := step.Content[i]
+			v := step.Content[i+1]
+			if k.Value == "id" && v.Value == targetID {
+				return step
+			}
+		}
+	}
+	return nil
+}
+
+// Sets or updates a key in a MappingNode
+func setEnvVariable(env *yaml.Node, key, value string) {
+	for i := 0; i < len(env.Content); i += 2 {
+		k := env.Content[i]
+		v := env.Content[i+1]
+		if k.Value == key {
+			v.Value = value
+			return
+		}
+	}
+	// Not found, append it
+	env.Content = append(env.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Value: key},
+		&yaml.Node{Kind: yaml.ScalarNode, Value: value},
+	)
 }

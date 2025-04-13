@@ -1,0 +1,97 @@
+name: Konnect - decK sync 
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "konnect/**/kong.yaml"
+
+jobs:
+  detect-changes:
+    name: Detect Changed Kong Configs
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.collect-context.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Collect changed files
+        id: changed-files
+        uses: kong/changed-files@4edd678ac3f81e2dc578756871e4d00c19191daf
+        with:
+          files: |
+            konnect/**/kong.yaml
+
+      - name: Build Matrix
+        id: collect-context
+        run: |
+          CHANGED_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "Changed kong.yaml files: $CHANGED_FILES"
+          
+          OUTPUT_MATRIX=()
+
+          # Loop through each changed kong.yaml file
+          for FILE in $CHANGED_FILES; do
+            ORG=$(echo "$FILE" | grep -oP 'konnect/[^/]+' | cut -d '/' -f2)
+            TEAM=$(echo "$FILE" | grep -oP 'teams/[^/]+' | cut -d '/' -f2)
+            ENV=$(echo "$FILE" | grep -oP 'envs/[^/]+' | cut -d '/' -f2)
+
+            # Only add to matrix if TEAM and ENV were extracted
+            if [[ -n "$TEAM" && -n "$ENV" ]]; then
+              OUTPUT_MATRIX+=("{\"org\":\"$ORG\",\"team\":\"$TEAM\",\"env\":\"$ENV\",\"file\":\"$FILE\"}")
+            else
+              echo "Skipping file (no team/env found): $FILE"
+            fi
+          done
+
+          MATRIX=$(printf '[%s]' "$(printf '%s,' "${OUTPUT_MATRIX[@]}" | sed 's/,$//')")
+          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+
+  sync-changes:
+    name: Sync Gateway Configs
+    needs: [detect-changes]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        context: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      max-parallel: 1
+      fail-fast: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Extract context
+        id: extract-context
+        run: |
+          ORG="${{ matrix.context.org }}"
+          TEAM="${{ matrix.context.team }}"
+          ENV="${{ matrix.context.env }}"
+          FILE_PATH="${{ matrix.context.file }}"
+          echo "ORG=$ORG" >> $GITHUB_OUTPUT
+          echo "TEAM=$TEAM" >> $GITHUB_OUTPUT
+          echo "ENV=$ENV" >> $GITHUB_OUTPUT
+          echo "FILE_PATH=$FILE_PATH" >> $GITHUB_OUTPUT
+
+      - name: Setup deck
+        uses: kong/setup-deck@v1
+        with:
+          deck-version: '1.44.1'
+          wrapper: false
+
+      - name: Run deck sync
+        env:
+          KONNECT_TOKEN: ${{ secrets[format('{0}_KONNECT_TOKEN', matrix.context.org)] }}
+        run: |
+          TEAM="${{ steps.extract-context.outputs.TEAM }}"
+          ENV="${{ steps.extract-context.outputs.ENV }}"
+          FILE_PATH="${{ steps.extract-context.outputs.FILE_PATH }}"
+          CONTROL_PLANE_NAME="${TEAM}-${ENV}"
+
+          echo "Syncing config for Control Plane: $CONTROL_PLANE_NAME"
+          echo "Using file: $FILE_PATH"
+
+          deck gateway sync \
+            --konnect-control-plane-name "$CONTROL_PLANE_NAME" \
+            --konnect-token "$KONNECT_TOKEN" \
+            "$FILE_PATH"
