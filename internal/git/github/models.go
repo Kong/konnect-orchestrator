@@ -1,8 +1,52 @@
 package github
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/google/go-github/v60/github"
 )
+
+// Timestamp represents a time that can be unmarshalled from a JSON string
+// formatted as either an RFC3339 or Unix timestamp. This is necessary for some
+// fields since the GitHub API is inconsistent in how it represents times. All
+// exported methods of time.Time can be called on Timestamp.
+type Timestamp struct {
+	time.Time
+}
+
+func (t Timestamp) String() string {
+	return t.Time.String()
+}
+
+// GetTime returns std time.Time.
+func (t *Timestamp) GetTime() *time.Time {
+	if t == nil {
+		return nil
+	}
+	return &t.Time
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// Time is expected in RFC3339 or Unix format.
+func (t *Timestamp) UnmarshalJSON(data []byte) (err error) {
+	str := string(data)
+	i, err := strconv.ParseInt(str, 10, 64)
+	if err == nil {
+		t.Time = time.Unix(i, 0)
+		if t.Time.Year() > 3000 {
+			t.Time = time.Unix(0, i*1e6)
+		}
+	} else {
+		t.Time, err = time.Parse(`"`+time.RFC3339+`"`, str)
+	}
+	return
+}
+
+// Equal reports whether t and u are equal based on time.Equal
+func (t Timestamp) Equal(u Timestamp) bool {
+	return t.Time.Equal(u.Time)
+}
 
 // UserProfile represents GitHub user information sent to the client
 type UserProfile struct {
@@ -107,4 +151,19 @@ type PullRequest struct {
 // PullRequestResponse represents the response for a pull requests API request
 type PullRequestResponse struct {
 	PullRequests []PullRequest `json:"pull_requests"`
+}
+
+// Secret represents a repository action secret.
+type Secret struct {
+	Name                    string    `json:"name"`
+	CreatedAt               Timestamp `json:"created_at"`
+	UpdatedAt               Timestamp `json:"updated_at"`
+	Visibility              string    `json:"visibility,omitempty"`
+	SelectedRepositoriesURL string    `json:"selected_repositories_url,omitempty"`
+}
+
+// Secrets represents one item from the ListSecrets response.
+type Secrets struct {
+	TotalCount int       `json:"total_count"`
+	Secrets    []*Secret `json:"secrets"`
 }

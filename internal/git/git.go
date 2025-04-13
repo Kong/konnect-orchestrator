@@ -21,7 +21,7 @@ import (
 // GetAuthMethod returns an ssh.AuthMethod based on the git config, or nil if no auth is specified
 func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 	// If the user has configured a well known env var for GitHub, we allow that to
-	// supercede the git and github configuration presented here. This allows
+	// supersede the git and github configuration presented here. This allows
 	// koctl to run within a GitHub action even if the user has a configuration file that reads
 	// secrets from local secrets files.
 	// check if GITHUB_TOKEN is set
