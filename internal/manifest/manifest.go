@@ -104,6 +104,22 @@ type GitConfig struct {
 	GitHub *GitHubConfig `json:"github,omitempty" yaml:"github,omitempty"`
 }
 
+func LoadGitConfigFromGhValues(url, ghToken, authorName, authorEmail string) GitConfig {
+	return GitConfig{
+		Remote: &url,
+		Author: &Author{
+			Name:  &authorName,
+			Email: &authorEmail,
+		},
+		GitHub: &GitHubConfig{
+			Token: &Secret{
+				Type:  "literal",
+				Value: ghToken,
+			},
+		},
+	}
+}
+
 type GitHubConfig struct {
 	Token *Secret `json:"token,omitempty" yaml:"token,omitempty"`
 }

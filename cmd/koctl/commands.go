@@ -25,6 +25,7 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/platform"
 	"github.com/Kong/konnect-orchestrator/internal/reports"
 	"github.com/Kong/konnect-orchestrator/internal/server"
+	"github.com/Kong/konnect-orchestrator/internal/tea/initprogram"
 	"github.com/Kong/konnect-orchestrator/internal/util"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
@@ -670,7 +671,7 @@ func loadPlatformManifest(path string) (*manifest.Platform, error) {
 	return rv.Platform, err
 }
 
-func loadPlatformGitCfgFromConfig(config *config.Config) (manifest.GitConfig, error) {
+func loadPlatformGitCfgFromConfig(config *config.Config) manifest.GitConfig {
 	var gitCfg manifest.GitConfig
 	gitCfg.Remote = &config.PlatformRepoURL
 	gitCfg.Author = &manifest.Author{
@@ -683,7 +684,7 @@ func loadPlatformGitCfgFromConfig(config *config.Config) (manifest.GitConfig, er
 			Type:  "literal",
 		},
 	}
-	return gitCfg, nil
+	return gitCfg
 }
 
 func loadConfigManifest() (*manifest.Orchestrator, error) {
@@ -798,14 +799,12 @@ func runInit(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-	if err = validateConfig(cfg); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
+	if cfg.PlatformRepoGHToken != "" && cfg.PlatformRepoURL != "" {
+		gitCfg := loadPlatformGitCfgFromConfig(cfg)
+		return platform.Init(&gitCfg, resourceFiles)
 	}
-	gitCfg, err := loadPlatformGitCfgFromConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to load platform git configuration: %w", err)
-	}
-	return platform.Init(&gitCfg, resourceFiles)
+	initprogram.Execute(resourceFiles, cfg)
+	return nil
 }
 
 func runAddOrganization(_ *cobra.Command, _ []string) error {
@@ -813,13 +812,7 @@ func runAddOrganization(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-	if err = validateConfig(cfg); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
-	}
-	gitCfg, err := loadPlatformGitCfgFromConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to load platform git configuration: %w", err)
-	}
+	gitCfg := loadPlatformGitCfgFromConfig(cfg)
 	return platform.AddOrganization(&gitCfg, orgNameArg, orgKonnectTokenArg)
 }
 
@@ -857,10 +850,7 @@ func runRun(_ *cobra.Command, _ []string) error {
 	if err = validateConfig(cfg); err != nil {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
-	gitCfg, err := loadPlatformGitCfgFromConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to load platform git configuration: %w", err)
-	}
+	gitCfg := loadPlatformGitCfgFromConfig(cfg)
 	return server.RunServer(gitCfg,
 		defaultTeamsFilePath,
 		defaultOrgsFilePath,
