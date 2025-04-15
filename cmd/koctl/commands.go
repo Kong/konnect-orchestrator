@@ -54,6 +54,7 @@ var (
 	version              = "dev"
 	commit               = "unknown"
 	date                 = "unknown"
+	createNewRepo        = false
 )
 
 var rootCmd = &cobra.Command{
@@ -108,6 +109,12 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	initCmd.Flags().BoolVarP(&createNewRepo,
+		"create",
+		"c",
+		false,
+		"Create a new repo.")
+
 	addCmd.AddCommand(addOrganizationCmd)
 
 	applyCmd.Flags().StringVar(&wholeFileArg,
@@ -805,7 +812,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load platform git configuration: %w", err)
 	}
-	return platform.Init(&gitCfg, resourceFiles)
+	return platform.Init(&gitCfg, resourceFiles, createNewRepo)
 }
 
 func runAddOrganization(_ *cobra.Command, _ []string) error {

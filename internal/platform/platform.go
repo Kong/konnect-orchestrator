@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -11,11 +12,12 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/git/github"
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
 	"github.com/Kong/konnect-orchestrator/internal/util"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	giturl "github.com/kubescape/go-git-url"
 	"gopkg.in/yaml.v3"
 )
 
-func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
+func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS, createNewRepo bool) error {
 	// TODO: Initialize the platform repository with the following steps:
 	// Pre-requisites:
 	//		The repository must exist
@@ -31,6 +33,17 @@ func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
 	}
 
 	platformRepoDir, err := git.Clone(*platformGitCfg)
+
+	if errors.Is(err, transport.ErrRepositoryNotFound) {
+		if createNewRepo {
+			if err = github.CreateRepo(context.Background(), gitURL.GetOwnerName(), gitURL.GetRepoName(), *platformGitCfg.GitHub); err != nil {
+				return fmt.Errorf("failed to create platform repository: %w", err)
+			}
+			platformRepoDir, err = git.Clone(*platformGitCfg)
+		} else {
+			return fmt.Errorf("failed to create platform repository: %w [Hint: re-run with --create to auto-create missing repo]", err)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to clone platform repository: %w", err)
 	}

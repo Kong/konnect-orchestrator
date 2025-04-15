@@ -30,6 +30,23 @@ func NewGitHubService(authService *AuthService) *GitHubService {
 	}
 }
 
+func CreateRepo(ctx context.Context,
+	owner, repo string,
+	githubConfig manifest.GitHubConfig) error {
+	token, err := util.ResolveSecretValue(*githubConfig.Token)
+	if err != nil {
+		return err
+	}
+
+	client := CreateGitHubClient(ctx, token)
+	ghRepo := &github.Repository{Name: &repo, AutoInit: github.Bool(true)}
+	_, _, err = client.Repositories.Create(ctx, "", ghRepo)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func CreateOrUpdatePullRequest(ctx context.Context,
 	owner, repo, branch, title, body string,
 	githubConfig manifest.GitHubConfig,
