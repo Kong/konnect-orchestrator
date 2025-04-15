@@ -35,6 +35,9 @@ type Config struct {
 	PlatformRepoOwnerEmail string
 	PlatformRepoURL        string
 	PlatformRepoGHToken    string
+
+	KonnectToken string
+	OrgName      string
 }
 
 // LoadConfig loads configuration from environment variables
@@ -77,6 +80,9 @@ func LoadConfig() (*Config, error) {
 		PlatformRepoOwnerEmail: getEnv("PLATFORM_REPO_OWNER_EMAIL", "ko@konghq.com"),
 		PlatformRepoURL:        getEnv("PLATFORM_REPO_URL", ""),
 		PlatformRepoGHToken:    getEnv("PLATFORM_REPO_GITHUB_TOKEN", ""),
+
+		KonnectToken: getEnv("KONNECT_TOKEN", ""),
+		OrgName:      getEnv("ORG_NAME", ""),
 	}
 
 	return config, nil

@@ -25,6 +25,7 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/platform"
 	"github.com/Kong/konnect-orchestrator/internal/reports"
 	"github.com/Kong/konnect-orchestrator/internal/server"
+	"github.com/Kong/konnect-orchestrator/internal/tea/addorgprogram"
 	"github.com/Kong/konnect-orchestrator/internal/tea/initprogram"
 	"github.com/Kong/konnect-orchestrator/internal/util"
 	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
@@ -134,8 +135,6 @@ func init() {
 		"org-name",
 		"",
 		"Name of the new organization.")
-	addOrganizationCmd.MarkFlagRequired("konnect-token")
-	addOrganizationCmd.MarkFlagRequired("org-name")
 
 	cobra.OnInitialize(initConfig)
 
@@ -794,26 +793,83 @@ func validateConfig(c *config.Config) error {
 	return nil
 }
 
+func runAddOrganizationDirect(cfg *config.Config) {
+	statusChan := make(chan string)
+	errChan := make(chan error)
+
+	go func() {
+		gitCfg := loadPlatformGitCfgFromConfig(cfg)
+		errChan <- platform.AddOrganization(&gitCfg, cfg.OrgName, cfg.KonnectToken, statusChan)
+	}()
+
+	for {
+		select {
+		case status, ok := <-statusChan:
+			if !ok {
+				return
+			}
+			fmt.Printf("%s", status)
+		case err := <-errChan:
+			if err != nil {
+				fmt.Errorf("failed to add organization to platform repository: %w", err)
+			}
+			return
+		}
+	}
+}
+func runAddOrganization(_ *cobra.Command, _ []string) error {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	if orgNameArg != "" {
+		cfg.OrgName = orgNameArg
+	}
+	if orgKonnectTokenArg != "" {
+		cfg.KonnectToken = orgKonnectTokenArg
+	}
+
+	if cfg.PlatformRepoGHToken != "" && cfg.PlatformRepoURL != "" && cfg.KonnectToken != "" && cfg.OrgName != "" {
+		runAddOrganizationDirect(cfg)
+		return nil
+	}
+	return addorgprogram.Execute(*cfg)
+}
+
+func runInitDirect(cfg *config.Config) {
+	statusChan := make(chan string)
+	errChan := make(chan error)
+	go func() {
+		gitCfg := loadPlatformGitCfgFromConfig(cfg)
+		errChan <- platform.Init(gitCfg, resourceFiles, statusChan)
+	}()
+
+	for {
+		select {
+		case status, ok := <-statusChan:
+			if !ok {
+				return
+			}
+			fmt.Printf("%s", status)
+		case err := <-errChan:
+			if err != nil {
+				fmt.Errorf("failed to initialize platform repository: %w", err)
+			}
+			return
+		}
+	}
+}
 func runInit(_ *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 	if cfg.PlatformRepoGHToken != "" && cfg.PlatformRepoURL != "" {
-		gitCfg := loadPlatformGitCfgFromConfig(cfg)
-		return platform.Init(&gitCfg, resourceFiles)
+		runInitDirect(cfg)
+		return nil
 	}
-	initprogram.Execute(resourceFiles, cfg)
-	return nil
-}
-
-func runAddOrganization(_ *cobra.Command, _ []string) error {
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-	gitCfg := loadPlatformGitCfgFromConfig(cfg)
-	return platform.AddOrganization(&gitCfg, orgNameArg, orgKonnectTokenArg)
+	return initprogram.Execute(resourceFiles, *cfg)
 }
 
 func runApply(_ *cobra.Command, _ []string) error {

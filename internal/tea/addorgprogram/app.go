@@ -1,7 +1,6 @@
-package initprogram
+package addorgprogram
 
 import (
-	"embed"
 	"fmt"
 	"strings"
 
@@ -35,19 +34,17 @@ type errMsg struct{ err error }
 func (e errMsg) Error() string { return e.err.Error() }
 
 type model struct {
-	focusIndex    int
-	inputs        []textinput.Model
-	cursorMode    cursor.Mode
-	err           error
-	responses     []string
-	resourceFiles embed.FS
-	lastMsg       tea.Msg
+	focusIndex int
+	inputs     []textinput.Model
+	cursorMode cursor.Mode
+	err        error
+	responses  []string
+	lastMsg    tea.Msg
 }
 
-func initialModel(files embed.FS, c config.Config) model {
+func initialModel(c config.Config) model {
 	m := model{
-		inputs:        make([]textinput.Model, 2),
-		resourceFiles: files,
+		inputs: make([]textinput.Model, 4),
 	}
 
 	var t textinput.Model
@@ -67,6 +64,13 @@ func initialModel(files embed.FS, c config.Config) model {
 		case 1:
 			t.Placeholder = "GitHub Token"
 			t.SetValue(c.PlatformRepoGHToken)
+			t.EchoMode = textinput.EchoPassword
+			t.EchoCharacter = '•'
+		case 2:
+			t.Placeholder = "Organization Name"
+		case 3:
+			t.Placeholder = "Konnect Token"
+			t.SetValue(c.KonnectToken)
 			t.EchoMode = textinput.EchoPassword
 			t.EchoCharacter = '•'
 		}
@@ -112,7 +116,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s := msg.String()
 
 			if s == "enter" && m.focusIndex == len(m.inputs) {
-				run(m.inputs[0].Value(), m.inputs[1].Value(), m.resourceFiles)
+				run(
+					m.inputs[0].Value(),
+					m.inputs[1].Value(),
+					m.inputs[2].Value(),
+					m.inputs[3].Value())
 			}
 
 			// Cycle indexes
@@ -182,13 +190,14 @@ func (m model) View() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString("The `koctl init` command initializes a\n")
-	b.WriteString("Platform Team GitHub repository to prepare\n")
-	b.WriteString("it to participate in the Konnect Reference Platform.\n\n")
-	b.WriteString("In order to initialize the repository, we must collect\n")
-	b.WriteString("two pieces of information. The GitHub URL and a GitHub token\n")
-	b.WriteString("that has access to the repository.\n\n")
-	b.WriteString("See the FAQ page for details on the token permission requirements:\n")
+	b.WriteString("The `koctl add organization` adds an organization\n")
+	b.WriteString("to your Platform Team GitHub repository. \n")
+	b.WriteString("This organization maps to a Kong Konnect organization you\n")
+	b.WriteString("have already created.\n\n")
+	b.WriteString("If you need a Konnect organization, visit:\n")
+	b.WriteString("https://konghq.com/products/kong-konnect/register\n\n")
+	b.WriteString("For more information on the Konnect Reference Platform\n")
+	b.WriteString("and how Organizations work, visit:\n")
 	b.WriteString("https://deploy-preview-783--kongdeveloper.netlify.app/konnect-reference-platform/faq/\n\n")
 
 	for i := range m.inputs {
@@ -207,7 +216,7 @@ func (m model) View() string {
 	return b.String()
 }
 
-func run(url, token string, files embed.FS) {
+func run(gitURL, githubToken, orgName, konnectToken string) {
 	statusChan := make(chan string)
 	retChan := make(chan error)
 
@@ -224,13 +233,13 @@ func run(url, token string, files embed.FS) {
 	}()
 
 	go func() {
-		gitCfg := manifest.LoadGitConfigFromGhValues(url, token, "", "")
-		retChan <- platform.Init(gitCfg, files, statusChan)
+		gitCfg := manifest.LoadGitConfigFromGhValues(gitURL, githubToken, "", "")
+		retChan <- platform.AddOrganization(&gitCfg, orgName, konnectToken, statusChan)
 	}()
 }
 
-func Execute(files embed.FS, cfg config.Config) error {
-	p := tea.NewProgram(initialModel(files, cfg))
+func Execute(cfg config.Config) error {
+	p := tea.NewProgram(initialModel(cfg))
 	programReceiver = p.Send
 
 	if _, err := p.Run(); err != nil {
