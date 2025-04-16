@@ -123,10 +123,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				createNewRepo = true
 			}
 
-			if s == "enter" && m.focusIndex == len(m.inputs) {
-				run(m.inputs[0].Value(), m.inputs[1].Value(), createNewRepo, m.resourceFiles)
-			}
-
 			// Cycle indexes
 			if s == "up" || s == "shift+tab" {
 				m.focusIndex--
@@ -153,6 +149,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputs[i].Blur()
 				m.inputs[i].PromptStyle = noStyle
 				m.inputs[i].TextStyle = noStyle
+			}
+
+			if s == "enter" && m.focusIndex == len(m.inputs) {
+				run(m.inputs[0].Value(), m.inputs[1].Value(), createNewRepo, m.resourceFiles)
 			}
 
 			return m, tea.Batch(cmds...)
