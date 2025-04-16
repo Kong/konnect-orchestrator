@@ -793,7 +793,7 @@ func validateConfig(c *config.Config) error {
 	return nil
 }
 
-func runAddOrganizationDirect(cfg *config.Config) {
+func runAddOrganizationDirect(cfg *config.Config) error {
 	statusChan := make(chan string)
 	errChan := make(chan error)
 
@@ -806,14 +806,14 @@ func runAddOrganizationDirect(cfg *config.Config) {
 		select {
 		case status, ok := <-statusChan:
 			if !ok {
-				return
+				return nil
 			}
 			fmt.Printf("%s", status)
 		case err := <-errChan:
 			if err != nil {
-				fmt.Errorf("failed to add organization to platform repository: %w", err)
+				return fmt.Errorf("failed to add organization to platform repository: %w", err)
 			}
-			return
+			return nil
 		}
 	}
 }
@@ -831,13 +831,12 @@ func runAddOrganization(_ *cobra.Command, _ []string) error {
 	}
 
 	if cfg.PlatformRepoGHToken != "" && cfg.PlatformRepoURL != "" && cfg.KonnectToken != "" && cfg.OrgName != "" {
-		runAddOrganizationDirect(cfg)
-		return nil
+		return runAddOrganizationDirect(cfg)
 	}
 	return addorgprogram.Execute(*cfg)
 }
 
-func runInitDirect(cfg *config.Config) {
+func runInitDirect(cfg *config.Config) error {
 	statusChan := make(chan string)
 	errChan := make(chan error)
 	go func() {
@@ -849,14 +848,14 @@ func runInitDirect(cfg *config.Config) {
 		select {
 		case status, ok := <-statusChan:
 			if !ok {
-				return
+				return nil
 			}
 			fmt.Printf("%s", status)
 		case err := <-errChan:
 			if err != nil {
-				fmt.Errorf("failed to initialize platform repository: %w", err)
+				return fmt.Errorf("failed to initialize platform repository: %w", err)
 			}
-			return
+			return nil
 		}
 	}
 }
@@ -866,8 +865,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 	if cfg.PlatformRepoGHToken != "" && cfg.PlatformRepoURL != "" {
-		runInitDirect(cfg)
-		return nil
+		return runInitDirect(cfg)
 	}
 	return initprogram.Execute(resourceFiles, *cfg)
 }
