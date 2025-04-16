@@ -15,7 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
+func Init(platformGitCfg manifest.GitConfig, resourceFiles embed.FS, statusCh chan<- string) error {
 	// TODO: Initialize the platform repository with the following steps:
 	// Pre-requisites:
 	//		The repository must exist
@@ -24,19 +24,22 @@ func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
 	//			git author (name and email)
 	//			GitHub token
 
+	defer close(statusCh)
+
 	// 1. Clone the repository locally
 	gitURL, err := giturl.NewGitURL(*platformGitCfg.Remote)
 	if err != nil {
 		return fmt.Errorf("failed to parse Git URL: %w", err)
 	}
 
-	platformRepoDir, err := git.Clone(*platformGitCfg)
+	platformRepoDir, err := git.Clone(platformGitCfg)
 	if err != nil {
 		return fmt.Errorf("failed to clone platform repository: %w", err)
 	}
+	statusCh <- fmt.Sprintf("✔ Cloned %s repository locally\n", gitURL.GetRepoName())
 
 	branchName := "konnect-orchestrator-init"
-	err = git.CheckoutBranch(platformRepoDir, branchName, *platformGitCfg)
+	err = git.CheckoutBranch(platformRepoDir, branchName, platformGitCfg)
 	if err != nil {
 		return fmt.Errorf("failed to checkout branch: %w", err)
 	}
@@ -61,6 +64,7 @@ func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
 	if err != nil {
 		return fmt.Errorf("failed to copy default konnect/ files: %w", err)
 	}
+	statusCh <- "✔ Added default files to konnect directory\n"
 
 	err = git.Add(platformRepoDir, ".")
 	if err != nil {
@@ -73,17 +77,19 @@ func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
 	if err != nil {
 		return fmt.Errorf("failed to check if platform repository is clean: %w", err)
 	}
+	var prURL string
 	if !isClean {
 		err = git.Commit(platformRepoDir, "Konnect Orchestrator initializing the platform repository", *platformGitCfg.Author)
 		if err != nil {
 			return fmt.Errorf("failed to commit changes: %w", err)
 		}
-		err = git.Push(platformRepoDir, *platformGitCfg)
+		err = git.Push(platformRepoDir, platformGitCfg)
 		if err != nil {
 			return fmt.Errorf("failed to push changes: %w", err)
 		}
+		statusCh <- fmt.Sprintf("✔ Pushed changes to the %s repository %s branch\n", gitURL.GetRepoName(), branchName)
 
-		_, err = github.CreateOrUpdatePullRequest(
+		pr, err := github.CreateOrUpdatePullRequest(
 			context.Background(),
 			gitURL.GetOwnerName(),
 			gitURL.GetRepoName(),
@@ -95,19 +101,32 @@ func Init(platformGitCfg *manifest.GitConfig, resourceFiles embed.FS) error {
 		if err != nil {
 			return fmt.Errorf("failed to create or update pull request: %w", err)
 		}
+		prURL = *pr.HTMLURL
+	}
+	if prURL == "" {
+		prURL = *platformGitCfg.Remote + "/pulls"
 	}
 
 	// 9. Write the provided GitHub auth token to the repository secrets API
+	secretName := "KONNECT_ORCHESTRATOR_GITHUB_TOKEN" //nolint:gosec
 	err = github.CreateRepoActionSecret(
 		context.Background(),
 		platformGitCfg.GitHub,
 		gitURL.GetOwnerName(),
 		gitURL.GetRepoName(),
-		"KONNECT_ORCHESTRATOR_GITHUB_TOKEN",
+		secretName,
 		platformGitCfg.GitHub.Token)
 	if err != nil {
 		return fmt.Errorf("failed to create GitHub secret: %w", err)
 	}
+	statusCh <- fmt.Sprintf("✔ Added %s to %s repository secrets\n", secretName, gitURL.GetRepoName())
+
+	statusCh <- fmt.Sprintf("✔ PR Filed: %s\n", prURL)
+	statusCh <- "\tReview and Merge to complete platform repository initialization.\n\n"
+	statusCh <- "Next add your Konnect Organization to the platform with\n"
+	statusCh <- "\tkoctl add organization\n\n"
+	statusCh <- "See the FAQ page for further questions on the Konnect Reference Platform:\n"
+	statusCh <- "\thttps://deploy-preview-783--kongdeveloper.netlify.app/konnect-reference-platform/faq\n"
 
 	return nil
 }
@@ -116,6 +135,7 @@ func AddOrganization(
 	platformGitCfg *manifest.GitConfig,
 	orgName,
 	konnectToken string,
+	statusCh chan<- string,
 ) error {
 	// TODO: Add an organization to the konnect/organizations.yaml file
 	// Pre-requisites:
@@ -124,6 +144,8 @@ func AddOrganization(
 	//		We prompt the user to provide the following:
 	//			Organization name (we slugify for a YAML key)
 	//			Konnect Token:
+
+	defer close(statusCh)
 
 	// 1. Clone the repository locally
 	gitURL, err := giturl.NewGitURL(*platformGitCfg.Remote)
@@ -135,6 +157,7 @@ func AddOrganization(
 	if err != nil {
 		return fmt.Errorf("failed to clone platform repository: %w", err)
 	}
+	statusCh <- fmt.Sprintf("✔ Cloned %s repository locally\n", gitURL.GetRepoName())
 
 	branchName := fmt.Sprintf("konnect-orchestrator-add-org-%s", orgName)
 	err = git.CheckoutBranch(platformRepoDir, branchName, *platformGitCfg)
@@ -185,6 +208,7 @@ func AddOrganization(
 	if err != nil {
 		return fmt.Errorf("error writing to file: %w", err)
 	}
+	statusCh <- fmt.Sprintf("✔ Added %s to organizations.yaml\n", gitURL.GetRepoName())
 
 	// 3. Modify the workflow file to include
 	//	    env:
@@ -232,12 +256,14 @@ func AddOrganization(
 	if err != nil {
 		return fmt.Errorf("failed to write workflow file: %w", err)
 	}
+	statusCh <- fmt.Sprintf("✔ Added %s to koctl apply workflow\n", konnectTokenEnvVarName)
 
 	// Detect changes to the repository
 	isClean, err := git.IsClean(platformRepoDir)
 	if err != nil {
 		return fmt.Errorf("failed to check if platform repository is clean: %w", err)
 	}
+	var prURL string
 	if !isClean {
 		if err = git.Add(platformRepoDir, "."); err != nil {
 			return fmt.Errorf("failed to add files to git: %w", err)
@@ -251,7 +277,7 @@ func AddOrganization(
 			return fmt.Errorf("failed to push changes: %w", err)
 		}
 
-		_, err = github.CreateOrUpdatePullRequest(
+		pr, err := github.CreateOrUpdatePullRequest(
 			context.Background(),
 			gitURL.GetOwnerName(),
 			gitURL.GetRepoName(),
@@ -263,6 +289,10 @@ func AddOrganization(
 		if err != nil {
 			return fmt.Errorf("failed to create or update pull request: %w", err)
 		}
+		prURL = *pr.HTMLURL
+	}
+	if prURL == "" {
+		prURL = *platformGitCfg.Remote + "/pulls"
 	}
 
 	// 9. Write the provided GitHub auth token to the repository secrets API
@@ -276,9 +306,15 @@ func AddOrganization(
 	if err != nil {
 		return fmt.Errorf("failed to create GitHub secret: %w", err)
 	}
+	statusCh <- fmt.Sprintf("✔ Added %s to %s repository secrets\n", konnectTokenEnvVarName, gitURL.GetRepoName())
 
-	// 4. Write the provided Konnect token to the repository secrets API
-	// 5. File PR
+	statusCh <- fmt.Sprintf("✔ PR Filed: %s\n", prURL)
+	statusCh <- "\tReview and Merge to complete adding the organization to the platform repository.\n\n"
+	statusCh <- "Next run the Reference Platform self service UI with:\n"
+	statusCh <- "\tkoctl run\n\n"
+	statusCh <- "See the FAQ page for further questions on the Konnect Reference Platform:\n"
+	statusCh <- "\thttps://deploy-preview-783--kongdeveloper.netlify.app/konnect-reference-platform/faq\n"
+
 	return nil
 }
 
