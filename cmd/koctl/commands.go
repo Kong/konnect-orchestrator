@@ -56,6 +56,7 @@ var (
 	version              = "dev"
 	commit               = "unknown"
 	date                 = "unknown"
+	createNewRepo        = false
 )
 
 var rootCmd = &cobra.Command{
@@ -110,6 +111,12 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	initCmd.Flags().BoolVarP(&createNewRepo,
+		"create",
+		"c",
+		false,
+		"Create a new repo.")
+
 	addCmd.AddCommand(addOrganizationCmd)
 
 	applyCmd.Flags().StringVar(&wholeFileArg,
@@ -841,7 +848,8 @@ func runInitDirect(cfg *config.Config) error {
 	errChan := make(chan error)
 	go func() {
 		gitCfg := loadPlatformGitCfgFromConfig(cfg)
-		errChan <- platform.Init(gitCfg, resourceFiles, statusChan)
+		errChan <- platform.Init(gitCfg, resourceFiles, statusChan, createNewRepo)
+		close(statusChan)
 	}()
 
 	for {
@@ -867,7 +875,7 @@ func runInit(_ *cobra.Command, _ []string) error {
 	if cfg.PlatformRepoGHToken != "" && cfg.PlatformRepoURL != "" {
 		return runInitDirect(cfg)
 	}
-	return initprogram.Execute(resourceFiles, *cfg)
+	return initprogram.Execute(resourceFiles, *cfg, createNewRepo)
 }
 
 func runApply(_ *cobra.Command, _ []string) error {
