@@ -3,7 +3,9 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Kong/konnect-orchestrator/internal/config"
@@ -35,6 +37,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Generate a random state
 	state, err := generateRandomState()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to generate random state: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to generate state",
 		})
@@ -57,6 +60,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	// Get the state from the URL
 	state := c.Query("state")
 	if state == "" {
+		fmt.Fprintf(os.Stderr, "Missing state parameter in callback\n")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Missing state parameter",
 		})
@@ -66,6 +70,12 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	// Get the state from the cookie
 	savedState, err := c.Cookie("oauth_state")
 	if err != nil || state != savedState {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid state parameter in callback: %v\n", err)
+		}
+		if state != savedState {
+			fmt.Fprintf(os.Stderr, "State parameter does not match saved state\n")
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid state parameter",
 		})
@@ -75,6 +85,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	// Get the code from the URL
 	code := c.Query("code")
 	if code == "" {
+		fmt.Fprintf(os.Stderr, "Missing code parameter in callback\n")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Missing code parameter",
 		})
@@ -84,6 +95,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	// Exchange the code for a token
 	token, err := h.authService.ExchangeCodeForToken(c.Request.Context(), code)
 	if err != nil {
+		// Log the actual error internally for observability
+		fmt.Fprintf(os.Stderr, "authService.ExchangeCodeForToken failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to exchange code for token",
 		})
@@ -93,6 +106,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	// Get the user from GitHub
 	user, err := h.authService.GetUserFromGitHub(c.Request.Context(), token)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "authService.GetUserFromGitHub failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get user from GitHub",
 		})
@@ -109,6 +123,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	// Generate a JWT token
 	jwtToken, err := h.authService.GenerateJWT(user, email, token.AccessToken)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "authService.GenerateJWT failed: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to generate JWT token",
 		})
@@ -160,6 +175,7 @@ func (h *AuthHandler) Success(c *gin.Context) {
 	// Generate a CSRF token
 	csrfToken, err := generateRandomToken()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to generate CSRF token: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to generate CSRF token",
 		})
@@ -203,6 +219,7 @@ func (h *AuthHandler) VerifyCode(c *gin.Context) {
 	// Generate a CSRF token
 	csrfToken, err := generateRandomToken()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to generate CSRF token: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to generate CSRF token",
 		})

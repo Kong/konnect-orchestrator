@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -37,6 +39,7 @@ func (h *OrgHandler) ListOrganizations(c *gin.Context) {
 		githubToken.(string),
 	)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error getting organizations: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get organizations: " + err.Error(),
 		})

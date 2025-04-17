@@ -2,6 +2,9 @@ package handlers
 
 import (
 	"net/http"
+	"os"
+
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 
@@ -25,6 +28,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	// Get the GitHub token from the context (set by the auth middleware)
 	githubToken, exists := c.Get("github_token")
 	if !exists {
+		fmt.Fprint(os.Stderr, "GitHub token not found in context\n")
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Not authenticated",
 		})
@@ -37,6 +41,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		githubToken.(string),
 	)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting user profile:%v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get user profile: " + err.Error(),
 		})

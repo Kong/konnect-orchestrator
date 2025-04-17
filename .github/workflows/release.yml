@@ -9,7 +9,7 @@ env:
   GOPRIVATE: github.com/Kong/*
 
 jobs:
-  goreleaser:
+  koctl-releaser:
     timeout-minutes: ${{ fromJSON(vars.GHA_DEFAULT_TIMEOUT) }}
     runs-on: ubuntu-latest
     steps:

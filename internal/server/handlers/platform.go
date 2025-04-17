@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -54,6 +55,7 @@ func (h *PlatformHandler) GetRepositoryPullRequests(c *gin.Context) {
 
 	gitURL, err := giturl.NewGitURL(*h.platformGitConfig.Remote)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error parsing Git URL:%v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -358,7 +360,7 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 	encoder := yaml.NewEncoder(file)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(man); err != nil { // Encode the struct directly
-		fmt.Printf("Error encoding YAML: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error encoding YAML: %v\n", err)
 		file.Close()
 		return
 	}

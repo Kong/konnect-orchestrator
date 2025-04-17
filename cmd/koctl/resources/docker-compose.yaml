@@ -6,11 +6,14 @@ services:
     ports:
       - "8080:8080"
     environment:
+      - SERVER_HOST=0.0.0.0
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - PLATFORM_REPO_URL=${PLATFORM_REPO_URL}
       - PLATFORM_REPO_GITHUB_TOKEN=${PLATFORM_REPO_GITHUB_TOKEN}
       - FRONTEND_URL=http://koctl-ui:5173
+      - GITHUB_REDIRECT_URI=http://localhost:8080/auth/github/callback
+    command: ["run"]
 
   koctl-ui:
     image: ghcr.io/kong/koctl-ui:latest
