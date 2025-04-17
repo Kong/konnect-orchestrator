@@ -35,10 +35,6 @@ dockers:
       - "ghcr.io/kong/koctl:latest"
       - "ghcr.io/kong/koctl:{{ .Tag }}"
     dockerfile: Dockerfile
-  - image_templates:
-      - "ghcr.io/kong/koctl-ui:latest"
-      - "ghcr.io/kong/koctl-ui:{{ .Tag }}"
-    dockerfile: ./ui/Dockerfile
 
 brews:
   - name: koctl
