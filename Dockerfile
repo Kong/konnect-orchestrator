@@ -1,5 +1,11 @@
-FROM scratch
+FROM gcr.io/distroless/base-debian11:nonroot
 
-ENTRYPOINT ["/koctl"]
+WORKDIR /app
 
-COPY koctl /
+EXPOSE 8080
+
+USER nonroot:nonroot
+
+ENTRYPOINT ["./koctl"]
+
+COPY koctl /app
