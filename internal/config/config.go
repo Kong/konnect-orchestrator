@@ -58,7 +58,7 @@ func LoadConfig() (*Config, error) {
 	config := &Config{
 		// Server configuration
 		ServerPort:  serverPort,
-		ServerHost:  getEnv("SERVER_HOST", "localhost"),
+		ServerHost:  getEnv("SERVER_HOST", "0.0.0.0"),
 		Environment: getEnv("ENVIRONMENT", "development"),
 		FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),
 

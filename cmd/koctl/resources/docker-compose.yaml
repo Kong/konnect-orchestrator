@@ -1,0 +1,22 @@
+version: "3.8"
+
+services:
+  koctl-api:
+    image: ghcr.io/kong/koctl:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - PLATFORM_REPO_URL=${PLATFORM_REPO_URL}
+      - PLATFORM_REPO_GITHUB_TOKEN=${PLATFORM_REPO_GITHUB_TOKEN}
+      - FRONTEND_URL=http://koctl-ui:5173
+
+  koctl-ui:
+    image: ghcr.io/kong/koctl-ui:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - VITE_API_BASE_URL=http://koctl-api:8080
+    depends_on:
+      - koctl-api
