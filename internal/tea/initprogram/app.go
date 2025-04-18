@@ -15,13 +15,10 @@ import (
 )
 
 var (
-	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	blurredStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	cursorStyle         = focusedStyle
-	noStyle             = lipgloss.NewStyle()
-	helpStyle           = blurredStyle
-	cursorModeHelpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
-
+	focusedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	blurredStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	cursorStyle   = focusedStyle
+	noStyle       = lipgloss.NewStyle()
 	focusedButton = focusedStyle.Render("[ Go! ]")
 	blurredButton = fmt.Sprintf("[ %s ]", blurredStyle.Render("Go!"))
 
@@ -44,10 +41,15 @@ type model struct {
 	lastMsg       tea.Msg
 }
 
-func initialModel(files embed.FS, c config.Config) model {
+func initialModel(files embed.FS, c config.Config, createNewRepo bool) model {
 	m := model{
-		inputs:        make([]textinput.Model, 2),
+		inputs:        make([]textinput.Model, 3),
 		resourceFiles: files,
+	}
+
+	var createNewRepoValue = "N"
+	if createNewRepo {
+		createNewRepoValue = "Y"
 	}
 
 	var t textinput.Model
@@ -59,16 +61,21 @@ func initialModel(files embed.FS, c config.Config) model {
 
 		switch i {
 		case 0:
-			t.Placeholder = "GitHub URL"
+			t.Prompt = "Github URL: "
 			t.SetValue(c.PlatformRepoURL)
 			t.Focus()
 			t.PromptStyle = focusedStyle
 			t.TextStyle = focusedStyle
 		case 1:
-			t.Placeholder = "GitHub Token"
+			t.Prompt = "GitHub Token: "
 			t.SetValue(c.PlatformRepoGHToken)
 			t.EchoMode = textinput.EchoPassword
 			t.EchoCharacter = '•'
+		case 2:
+			t.Prompt = "Create Repo? [Y/N]: "
+			t.SetValue(createNewRepoValue)
+			t.CharLimit = 1
+			t.Width = 20
 		}
 		m.inputs[i] = t
 	}
@@ -111,8 +118,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyTab, tea.KeyShiftTab, tea.KeyEnter, tea.KeyUp, tea.KeyDown:
 			s := msg.String()
 
-			if s == "enter" && m.focusIndex == len(m.inputs) {
-				run(m.inputs[0].Value(), m.inputs[1].Value(), m.resourceFiles)
+			var createNewRepo = false
+			if strings.ToLower(m.inputs[2].Value()) == "y" {
+				createNewRepo = true
 			}
 
 			// Cycle indexes
@@ -141,6 +149,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputs[i].Blur()
 				m.inputs[i].PromptStyle = noStyle
 				m.inputs[i].TextStyle = noStyle
+			}
+
+			if s == "enter" && m.focusIndex == len(m.inputs) {
+				run(m.inputs[0].Value(), m.inputs[1].Value(), createNewRepo, m.resourceFiles)
 			}
 
 			return m, tea.Batch(cmds...)
@@ -207,7 +219,7 @@ func (m model) View() string {
 	return b.String()
 }
 
-func run(url, token string, files embed.FS) {
+func run(url, token string, createNewRepo bool, files embed.FS) {
 	statusChan := make(chan string)
 	retChan := make(chan error)
 
@@ -225,12 +237,12 @@ func run(url, token string, files embed.FS) {
 
 	go func() {
 		gitCfg := manifest.LoadGitConfigFromGhValues(url, token, "", "")
-		retChan <- platform.Init(gitCfg, files, statusChan)
+		retChan <- platform.Init(gitCfg, files, statusChan, createNewRepo)
 	}()
 }
 
-func Execute(files embed.FS, cfg config.Config) error {
-	p := tea.NewProgram(initialModel(files, cfg))
+func Execute(files embed.FS, cfg config.Config, createNewRepo bool) error {
+	p := tea.NewProgram(initialModel(files, cfg, createNewRepo))
 	programReceiver = p.Send
 
 	if _, err := p.Run(); err != nil {

@@ -30,6 +30,32 @@ func NewGitHubService(authService *AuthService) *GitHubService {
 	}
 }
 
+func CreateRepo(ctx context.Context,
+	owner, repo string,
+	githubConfig manifest.GitHubConfig) error {
+	token, err := util.ResolveSecretValue(*githubConfig.Token)
+	if err != nil {
+		return err
+	}
+
+	client := CreateGitHubClient(ctx, token)
+	currentUser, _, err := client.Users.Get(ctx, "")
+	if err != nil {
+		return err
+	}
+	// If the below is true, it means we're creating a repo in a personal account
+	// so owner needs to be empty to trigger the correct Github API
+	if currentUser.Login == &owner {
+		owner = ""
+	}
+	ghRepo := &github.Repository{Name: &repo, AutoInit: github.Bool(true)}
+	_, _, err = client.Repositories.Create(ctx, owner, ghRepo)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func CreateOrUpdatePullRequest(ctx context.Context,
 	owner, repo, branch, title, body string,
 	githubConfig manifest.GitHubConfig,
