@@ -31,13 +31,14 @@ changelog:
       - "^docs:"
       - "^test:"
 kos:
-  - repositories:
+  - id: koctl
+    build: koctl
+    main: ./cmd/koctl
+    repository:
       - "ghcr.io/kong/koctl"
     tags:
       - "latest"
       - "{{ .Version }}"
-    bare: true
-    preserve_import_paths: false
     platforms:
       - "linux/amd64"
       - "linux/arm64"
