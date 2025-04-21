@@ -35,6 +35,9 @@ dockers:
       - "ghcr.io/kong/koctl:latest"
       - "ghcr.io/kong/koctl:{{ .Tag }}"
     dockerfile: Dockerfile
+    platforms:
+      - "linux/amd64"
+      - "linux/arm64"
 
 brews:
   - name: koctl

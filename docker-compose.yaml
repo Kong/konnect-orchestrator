@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   koctl-api:
     image: ghcr.io/kong/koctl:latest

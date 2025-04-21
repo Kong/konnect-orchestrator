@@ -1,3 +1,6 @@
+package docker
+
+var SelfServiceComposeFile = `
 version: "3.8"
 
 services:
@@ -6,12 +9,11 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - SERVER_HOST=0.0.0.0
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
       - PLATFORM_REPO_URL=${PLATFORM_REPO_URL}
       - PLATFORM_REPO_GITHUB_TOKEN=${PLATFORM_REPO_GITHUB_TOKEN}
-      - FRONTEND_URL=http://koctl-ui:5173
+      - FRONTEND_URL=http://localhost:8081
       - GITHUB_REDIRECT_URI=http://localhost:8080/auth/github/callback
     command: ["run"]
 
@@ -23,3 +25,4 @@ services:
       - VITE_API_BASE_URL=http://koctl-api:8080
     depends_on:
       - koctl-api
+`

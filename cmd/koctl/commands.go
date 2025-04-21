@@ -13,6 +13,7 @@ import (
 
 	"github.com/Kong/konnect-orchestrator/internal/config"
 	"github.com/Kong/konnect-orchestrator/internal/deck/patch"
+	"github.com/Kong/konnect-orchestrator/internal/docker"
 	"github.com/Kong/konnect-orchestrator/internal/gateway"
 	"github.com/Kong/konnect-orchestrator/internal/git"
 	"github.com/Kong/konnect-orchestrator/internal/git/github"
@@ -44,6 +45,29 @@ const (
 	defaultOrchestratorPath = "konnect/"
 	defaultTeamsFilePath    = defaultOrchestratorPath + "teams.yaml"
 	defaultOrgsFilePath     = defaultOrchestratorPath + "organizations.yaml"
+
+	composeFile = `services:
+  koctl-api:
+    image: ghcr.io/kong/koctl:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - PLATFORM_REPO_URL=${PLATFORM_REPO_URL}
+      - PLATFORM_REPO_GITHUB_TOKEN=${PLATFORM_REPO_GITHUB_TOKEN}
+      - FRONTEND_URL=http://localhost:8081
+      - GITHUB_REDIRECT_URI=http://localhost:8080/auth/github/callback
+    command: ["run"]
+  koctl-ui:
+    image: ghcr.io/kong/koctl-ui:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - VITE_API_BASE_URL=http://koctl-api:8080
+    depends_on:
+      - koctl-api
+`
 )
 
 var (
@@ -85,9 +109,29 @@ necessary resource definitions. See the init command for an example of the requi
 
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "Run the orchestrators API server",
-	Long:  `The orchestrator can run an API server which can handle HTTP requests related to the state of the platform repository.`,
+	Short: "Run the Application Team Self Service API and UI Servers",
+	Long:  `Runs the Service Team onboarding website.`,
 	RunE:  runRun,
+}
+
+var runUICmd = &cobra.Command{
+	Use:   "ui",
+	Short: "Run the Application Team Self Service UI Server",
+	Long:  `The self service UI allows service teams to onboard their service repositories to the platform themselves.`,
+	RunE:  runRunUI,
+}
+
+var runAPICmd = &cobra.Command{
+	Use:   "api",
+	Short: "Run the API Server",
+	Long:  `The API server serves requests for the platform repository and helps drive the self service UI.`,
+	RunE:  runRunAPI,
+}
+
+var runExportCmd = &cobra.Command{
+	Use:   "export",
+	Short: "Export a docker-compose.yaml file for the API server and the self service UI",
+	RunE:  runRunExport,
 }
 
 var addCmd = &cobra.Command{
@@ -145,8 +189,13 @@ func init() {
 
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.AddCommand(applyCmd)
+	runCmd.AddCommand(runUICmd)
+	runCmd.AddCommand(runAPICmd)
+	runCmd.AddCommand(runExportCmd)
+
 	rootCmd.AddCommand(runCmd)
+
+	rootCmd.AddCommand(applyCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(initCmd)
@@ -905,6 +954,39 @@ func runApply(_ *cobra.Command, _ []string) error {
 }
 
 func runRun(_ *cobra.Command, _ []string) error {
+
+	_, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	instance, err := docker.ComposeUp(context.Background(), composeFile, "koctl-run")
+	if err != nil {
+		return fmt.Errorf("failed to run docker: %w", err)
+	}
+
+	fmt.Println("")
+	fmt.Println("To stop the project, run:")
+	fmt.Printf("\tdocker compose --project-name %s down\n", instance.ProjectName)
+	return nil
+}
+
+func runRunUI(_ *cobra.Command, _ []string) error {
+	_, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+	instance, err := docker.ComposeUp(context.Background(), composeFile, "koctl-run", "--no-deps", "koctl-ui")
+	if err != nil {
+		return fmt.Errorf("failed to run docker: %w", err)
+	}
+
+	fmt.Println("")
+	fmt.Println("To stop the project, run:")
+	fmt.Printf("\tdocker compose --project-name %s down\n", instance.ProjectName)
+	return nil
+}
+
+func runRunAPI(_ *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -917,6 +999,12 @@ func runRun(_ *cobra.Command, _ []string) error {
 		defaultTeamsFilePath,
 		defaultOrgsFilePath,
 		version, commit, date)
+}
+
+func runRunExport(_ *cobra.Command, _ []string) error {
+	// write the composeFile variable out to stdout as yaml
+	fmt.Print(composeFile)
+	return nil
 }
 
 func Execute() error {
