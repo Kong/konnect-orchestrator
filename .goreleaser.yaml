@@ -30,15 +30,26 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
-dockers:
-  - image_templates:
-      - "ghcr.io/kong/koctl:latest"
-      - "ghcr.io/kong/koctl:{{ .Tag }}"
-    dockerfile: Dockerfile
-    use: buildx
+kos:
+  - repositories:
+      - "ghcr.io/kong/koctl"
+    tags:
+      - "latest"
+      - "{{ .Version }}"
+    bare: true
+    preserve_import_paths: false
     platforms:
       - "linux/amd64"
       - "linux/arm64"
+#dockers:
+#  - image_templates:
+#      - "ghcr.io/kong/koctl:latest"
+#      - "ghcr.io/kong/koctl:{{ .Tag }}"
+#    dockerfile: Dockerfile
+#    use: buildx
+#    platforms:
+#      - "linux/amd64"
+#      - "linux/arm64"
 
 brews:
   - name: koctl
