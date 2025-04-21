@@ -34,8 +34,7 @@ kos:
   - id: koctl
     build: koctl
     main: ./cmd/koctl
-    repository:
-      - "ghcr.io/kong/koctl"
+    repository: "ghcr.io/kong/koctl"
     tags:
       - "latest"
       - "{{ .Version }}"
