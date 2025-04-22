@@ -55,7 +55,7 @@ func (h *PlatformHandler) GetRepositoryPullRequests(c *gin.Context) {
 
 	gitURL, err := giturl.NewGitURL(*h.platformGitConfig.Remote)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error parsing Git URL:%v\n", err)
+		fmt.Fprintf(os.Stderr, "Error parsing Git URL: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -64,20 +64,8 @@ func (h *PlatformHandler) GetRepositoryPullRequests(c *gin.Context) {
 	owner := gitURL.GetOwnerName()
 	repo := gitURL.GetRepoName()
 
-	// Get query parameters with defaults
-	state := c.DefaultQuery("state", "all")
-	sort := c.DefaultQuery("sort", "created")
-	direction := c.DefaultQuery("direction", "desc")
-
-	// Validate state parameter
-	validStates := map[string]bool{"open": true, "closed": true, "all": true}
-	if !validStates[state] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter. Must be 'open', 'closed', or 'all'"})
-		return
-	}
-
 	// Call the service to get pull requests
-	pullRequests, err := h.githubService.GetRepositoryPullRequests(c.Request.Context(), githubToken.(string), owner, repo, state, sort, direction)
+	pullRequests, err := h.githubService.GetRepositoryPullRequests(c.Request.Context(), githubToken.(string), owner, repo, []string{"new-service"})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -102,7 +90,7 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 
 	// Setup in-memory filesystem
 	fs := memfs.New()
-
+	fmt.Println(*h.platformGitConfig.Remote)
 	// Clone repository in memory
 	r, err := goGit.Clone(memory.NewStorage(), fs, &goGit.CloneOptions{
 		URL:           *h.platformGitConfig.Remote,
@@ -112,7 +100,7 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to clone repository: " + err.Error(),
+			"error": "Failed to clone repository: " + err.Error() + *h.platformGitConfig.Remote,
 		})
 		return
 	}
