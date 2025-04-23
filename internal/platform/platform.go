@@ -108,7 +108,9 @@ func Init(platformGitCfg manifest.GitConfig, resourceFiles embed.FS, statusCh ch
 			"[Konnect Orchestrator] - Init Platform",
 			`The Konnect Orchestrator 'init' function was executed and filed this PR to initialize the Platform repository, 
 			including GitHub Actions and default configuration files.`,
-			*platformGitCfg.GitHub)
+			*platformGitCfg.GitHub,
+			nil,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to create or update pull request: %w", err)
 		}
@@ -296,7 +298,9 @@ func AddOrganization(
 			fmt.Sprintf("[Konnect Orchestrator] - Add %s Organization", orgName),
 			`The Konnect Orchestrator Add Organization function was executed and 
 			 filed this PR to add a new organization to the Platform repository`,
-			*platformGitCfg.GitHub)
+			*platformGitCfg.GitHub,
+			nil,
+		)
 		if err != nil {
 			return fmt.Errorf("failed to create or update pull request: %w", err)
 		}

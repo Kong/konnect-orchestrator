@@ -24,6 +24,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Create response structure for frontend
+type ServiceResponse struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	SpecPath    string `json:"specPath,omitempty"`
+	ProdBranch  string `json:"prodBranch"`
+	DevBranch   string `json:"devBranch"`
+	Git         struct {
+		Repo string `json:"repo"`
+	} `json:"git"`
+	Team string `json:"team"`
+}
+
 // RepoHandler handles repository related requests
 type PlatformHandler struct {
 	githubService     *gh.GitHubService
@@ -55,7 +68,7 @@ func (h *PlatformHandler) GetRepositoryPullRequests(c *gin.Context) {
 
 	gitURL, err := giturl.NewGitURL(*h.platformGitConfig.Remote)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error parsing Git URL:%v\n", err)
+		fmt.Fprintf(os.Stderr, "Error parsing Git URL: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -64,20 +77,8 @@ func (h *PlatformHandler) GetRepositoryPullRequests(c *gin.Context) {
 	owner := gitURL.GetOwnerName()
 	repo := gitURL.GetRepoName()
 
-	// Get query parameters with defaults
-	state := c.DefaultQuery("state", "all")
-	sort := c.DefaultQuery("sort", "created")
-	direction := c.DefaultQuery("direction", "desc")
-
-	// Validate state parameter
-	validStates := map[string]bool{"open": true, "closed": true, "all": true}
-	if !validStates[state] {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid state parameter. Must be 'open', 'closed', or 'all'"})
-		return
-	}
-
 	// Call the service to get pull requests
-	pullRequests, err := h.githubService.GetRepositoryPullRequests(c.Request.Context(), githubToken.(string), owner, repo, state, sort, direction)
+	pullRequests, err := h.githubService.GetRepositoryPullRequests(c.Request.Context(), githubToken.(string), owner, repo, []string{"new-service"})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -102,7 +103,7 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 
 	// Setup in-memory filesystem
 	fs := memfs.New()
-
+	fmt.Println(*h.platformGitConfig.Remote)
 	// Clone repository in memory
 	r, err := goGit.Clone(memory.NewStorage(), fs, &goGit.CloneOptions{
 		URL:           *h.platformGitConfig.Remote,
@@ -112,7 +113,7 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to clone repository: " + err.Error(),
+			"error": "Failed to clone repository: " + err.Error() + *h.platformGitConfig.Remote,
 		})
 		return
 	}
@@ -128,8 +129,9 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 
 	file, err := w.Filesystem.Open(h.teamsFilePath)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to open config file: " + err.Error(),
+		// File doesn't exist or can't be opened - return empty services array
+		c.JSON(http.StatusOK, gin.H{
+			"services": []ServiceResponse{},
 		})
 		return
 	}
@@ -138,8 +140,17 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 	// Read file content
 	content, err := io.ReadAll(file)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to read config file: " + err.Error(),
+		// Failed to read - return empty services array
+		c.JSON(http.StatusOK, gin.H{
+			"services": []ServiceResponse{},
+		})
+		return
+	}
+
+	// Handle empty file
+	if len(content) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"services": []ServiceResponse{},
 		})
 		return
 	}
@@ -147,68 +158,68 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 	// Parse yaml
 	var orchestrator manifest.Orchestrator
 	if err := yaml.Unmarshal(content, &orchestrator); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to parse config file: " + err.Error(),
+		// Failed to parse - return empty services array
+		c.JSON(http.StatusOK, gin.H{
+			"services": []ServiceResponse{},
 		})
 		return
 	}
 
-	// Create response structure for frontend
-	type ServiceResponse struct {
-		Name        string `json:"name"`
-		Description string `json:"description,omitempty"`
-		SpecPath    string `json:"specPath,omitempty"`
-		ProdBranch  string `json:"prodBranch"`
-		DevBranch   string `json:"devBranch"`
-		Git         struct {
-			Repo string `json:"repo"`
-		} `json:"git"`
-		Team string `json:"team"`
-	}
-
 	// Convert orchestrator services to response format
 	services := []ServiceResponse{}
-	for teamName, team := range orchestrator.Teams {
-		for serviceKey, service := range team.Services {
-			if service == nil || service.Name == nil {
-				continue // Skip invalid services
+
+	// Check if Teams map is nil
+	if orchestrator.Teams != nil {
+		for teamName, team := range orchestrator.Teams {
+			// Skip nil teams
+			if team == nil {
+				continue
 			}
 
-			// Get repo path from the remote URL or use the key as fallback
-			repoPath := serviceKey
-			if service.Git != nil && service.Git.Remote != nil {
-				// Extract repo path from full URL
-				remoteURL := *service.Git.Remote
-				if strings.Contains(remoteURL, "github.com") {
-					parts := strings.Split(remoteURL, "github.com/")
-					if len(parts) > 1 {
-						repoPath = strings.TrimSuffix(parts[1], ".git")
+			// Check if Services map is nil
+			if team.Services != nil {
+				for serviceKey, service := range team.Services {
+					if service == nil || service.Name == nil {
+						continue // Skip invalid services
 					}
+
+					// Get repo path from the remote URL or use the key as fallback
+					repoPath := serviceKey
+					if service.Git != nil && service.Git.Remote != nil {
+						// Extract repo path from full URL
+						remoteURL := *service.Git.Remote
+						if strings.Contains(remoteURL, "github.com") {
+							parts := strings.Split(remoteURL, "github.com/")
+							if len(parts) > 1 {
+								repoPath = strings.TrimSuffix(parts[1], ".git")
+							}
+						}
+					}
+
+					// Create service response with defaults for non-pointer fields
+					serviceResp := ServiceResponse{
+						Name:       *service.Name,
+						Team:       teamName,
+						ProdBranch: service.ProdBranch,
+						DevBranch:  service.DevBranch,
+						Git: struct {
+							Repo string `json:"repo"`
+						}{
+							Repo: repoPath,
+						},
+					}
+
+					// Add optional fields if available
+					if service.Description != nil {
+						serviceResp.Description = *service.Description
+					}
+					if service.SpecPath != "" {
+						serviceResp.SpecPath = service.SpecPath
+					}
+
+					services = append(services, serviceResp)
 				}
 			}
-
-			// Create service response
-			serviceResp := ServiceResponse{
-				Name:       *service.Name,
-				Team:       teamName,
-				ProdBranch: service.ProdBranch,
-				DevBranch:  service.DevBranch,
-				Git: struct {
-					Repo string `json:"repo"`
-				}{
-					Repo: repoPath,
-				},
-			}
-
-			// Add optional fields if available
-			if service.Description != nil {
-				serviceResp.Description = *service.Description
-			}
-			if service.SpecPath != "" {
-				serviceResp.SpecPath = service.SpecPath
-			}
-
-			services = append(services, serviceResp)
 		}
 	}
 
@@ -423,7 +434,11 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 		owner,
 		repo,
 		newBranchName,
-		fmt.Sprintf("[Konnect Orchestrator] - Add Service: %s", repoInfo.Name), "Adding service manifest", *h.platformGitConfig.GitHub)
+		fmt.Sprintf("[Konnect Orchestrator] - Add Service: %s", repoInfo.Name),
+		"Adding service manifest",
+		*h.platformGitConfig.GitHub,
+		[]string{"new-service"},
+	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error creating pull request": err.Error()})
 		return

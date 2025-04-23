@@ -59,6 +59,7 @@ func CreateRepo(ctx context.Context,
 func CreateOrUpdatePullRequest(ctx context.Context,
 	owner, repo, branch, title, body string,
 	githubConfig manifest.GitHubConfig,
+	labels []string,
 ) (*github.PullRequest, error) {
 	// Create GitHub client with token
 	token, err := util.ResolveSecretValue(*githubConfig.Token)
@@ -105,6 +106,14 @@ func CreateOrUpdatePullRequest(ctx context.Context,
 	pr, _, err := client.PullRequests.Create(ctx, owner, repo, newPR)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pull request: %w", err)
+	}
+	if labels != nil {
+		// Add "new-service" label to the new PR
+		_, _, err = client.Issues.AddLabelsToIssue(ctx, owner, repo, pr.GetNumber(), labels)
+		if err != nil {
+			// Just log the error but don't fail the PR creation
+			fmt.Printf("Warning: failed to add label to PR: %v\n", err)
+		}
 	}
 
 	return pr, nil
@@ -606,30 +615,44 @@ func decodeContent(content string) (string, error) {
 }
 
 // GetRepositoryPullRequests fetches pull requests for a repository from GitHub
-func (s *GitHubService) GetRepositoryPullRequests(ctx context.Context, token, owner, repo string, state, sort, direction string) ([]PullRequest, error) {
+func (s *GitHubService) GetRepositoryPullRequests(ctx context.Context, token, owner, repo string, labels []string) ([]PullRequest, error) {
 	// Get the GitHub client
 	client := s.createClient(ctx, token)
 
-	// Set up the options for the GitHub API call
-	opts := &github.PullRequestListOptions{
-		State:     state,
-		Sort:      sort,
-		Direction: direction,
+	// Set up the options for the GitHub API call using Issues API
+	opts := &github.IssueListByRepoOptions{
+		State: "open", // Default to open PRs
 		ListOptions: github.ListOptions{
 			PerPage: 100, // Adjust based on your needs
 		},
 	}
 
-	// Call GitHub API to get pull requests
-	pullRequests, _, err := client.PullRequests.List(ctx, owner, repo, opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch pull requests: %w", err)
+	// Only set labels if not nil
+	if labels != nil {
+		opts.Labels = labels
 	}
 
-	// Convert GitHub pull requests to our model
-	result := make([]PullRequest, 0, len(pullRequests))
+	// Call GitHub API to get issues (including PRs)
+	issues, _, err := client.Issues.ListByRepo(ctx, owner, repo, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch issues: %w", err)
+	}
 
-	for _, pr := range pullRequests {
+	// Convert GitHub issues to our model, filtering for PRs only
+	result := make([]PullRequest, 0)
+
+	for _, issue := range issues {
+		// Skip if not a pull request
+		if !issue.IsPullRequest() {
+			continue
+		}
+
+		// We need to get the full PR object for complete information
+		pr, _, err := client.PullRequests.Get(ctx, owner, repo, issue.GetNumber())
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch PR details for #%d: %w", issue.GetNumber(), err)
+		}
+
 		pullRequest := PullRequest{
 			ID:        *pr.ID,
 			Number:    *pr.Number,
