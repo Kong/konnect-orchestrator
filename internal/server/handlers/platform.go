@@ -319,6 +319,9 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 
 	if man.Teams == nil {
 		man.Teams = make(map[string]*manifest.Team)
+	}
+
+	if _, exists := man.Teams[repoInfo.Team]; !exists {
 		man.Teams[repoInfo.Team] = &manifest.Team{
 			Services:    make(map[string]*manifest.Service),
 			Users:       []string{},
