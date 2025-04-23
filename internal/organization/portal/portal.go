@@ -24,6 +24,12 @@ type PortalsConfigService interface {
 		opts ...operations.Option) (*operations.UpdatePortalResponse, error)
 }
 
+type PortalPagesConfigService interface {
+	CreateDefaultContent(ctx context.Context,
+		portalID string,
+		opts ...operations.Option) (*operations.CreateDefaultContentResponse, error)
+}
+
 type ApisConfigService interface {
 	ListApis(ctx context.Context,
 		request operations.ListApisRequest,
@@ -74,6 +80,7 @@ func ApplyPortalConfig(
 	envType string,
 	portalsConfigService PortalsConfigService,
 	_ ApisConfigService,
+	pagesConfigService PortalPagesConfigService,
 	labels map[string]string,
 ) (string, error) {
 	var portalID string
@@ -113,6 +120,10 @@ func ApplyPortalConfig(
 			return "", err
 		}
 		portalID = newPortal.PortalResponseV3.ID
+		_, err = pagesConfigService.CreateDefaultContent(ctx, portalID)
+		if err != nil {
+			return "", err
+		}
 	} else {
 		portalID = portals.ListPortalsResponseV3.Data[0].ID
 		_, err = portalsConfigService.UpdatePortal(ctx, portalID, components.UpdatePortalV3{

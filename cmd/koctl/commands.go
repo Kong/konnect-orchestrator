@@ -370,6 +370,7 @@ func applyPortal(
 		envType,
 		internalRegionSdk.V3Portals,
 		internalRegionSdk.API,
+		internalRegionSdk.V3PortalPages,
 		labels)
 	if err != nil {
 		return "", fmt.Errorf("failed to apply portal configuration: %w", err)
