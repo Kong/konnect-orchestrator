@@ -59,6 +59,7 @@ func CreateRepo(ctx context.Context,
 func CreateOrUpdatePullRequest(ctx context.Context,
 	owner, repo, branch, title, body string,
 	githubConfig manifest.GitHubConfig,
+	labels []string,
 ) (*github.PullRequest, error) {
 	// Create GitHub client with token
 	token, err := util.ResolveSecretValue(*githubConfig.Token)
@@ -106,12 +107,13 @@ func CreateOrUpdatePullRequest(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pull request: %w", err)
 	}
-
-	// Add "new-service" label to the new PR
-	_, _, err = client.Issues.AddLabelsToIssue(ctx, owner, repo, pr.GetNumber(), []string{"new-service"})
-	if err != nil {
-		// Just log the error but don't fail the PR creation
-		fmt.Printf("Warning: failed to add label to PR: %v\n", err)
+	if labels != nil {
+		// Add "new-service" label to the new PR
+		_, _, err = client.Issues.AddLabelsToIssue(ctx, owner, repo, pr.GetNumber(), labels)
+		if err != nil {
+			// Just log the error but don't fail the PR creation
+			fmt.Printf("Warning: failed to add label to PR: %v\n", err)
+		}
 	}
 
 	return pr, nil

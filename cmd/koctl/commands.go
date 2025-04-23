@@ -552,6 +552,7 @@ func applyTeam(teamName string,
 					"and has generated the associated changes.", envName,
 			),
 			*platformGit.GitHub,
+			nil,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create or update pull request: %w", err)
