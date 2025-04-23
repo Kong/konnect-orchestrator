@@ -4,3 +4,4 @@ deck-*/
 download_dir/
 
 .DS_Store
+.env
