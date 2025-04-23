@@ -58,7 +58,7 @@ const (
       - PLATFORM_REPO_GITHUB_TOKEN=${PLATFORM_REPO_GITHUB_TOKEN}
       - FRONTEND_URL=http://localhost:8081
       - GITHUB_REDIRECT_URI=http://localhost:8080/auth/github/callback
-    command: ["run"]
+    command: ["run", "api"]
   koctl-ui:
     image: ghcr.io/kong/koctl-ui:latest
     ports:
@@ -956,7 +956,6 @@ func runApply(_ *cobra.Command, _ []string) error {
 }
 
 func runRun(_ *cobra.Command, _ []string) error {
-
 	_, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
