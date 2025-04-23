@@ -34,12 +34,7 @@ export function getCsrfToken() {
 
 // Add interceptor to include the auth token in requests
 apiClient.interceptors.request.use(config => {
-  // Add Authorization header if we have a token in localStorage
-  const token = localStorage.getItem('auth_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-
+  
   // Add CSRF token for non-GET requests
   if (config.method !== 'get' && csrfToken) {
     config.headers['X-CSRF-Token'] = csrfToken;

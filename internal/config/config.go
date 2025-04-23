@@ -53,7 +53,7 @@ func LoadConfig() (*Config, error) {
 
 	// Set up default scopes for GitHub
 	// These scopes will determine what your application can access
-	defaultScopes := []string{"user:email", "read:user", "repo"}
+	defaultScopes := []string{"user:email", "read:user", "repo", "read:org"}
 
 	config := &Config{
 		// Server configuration

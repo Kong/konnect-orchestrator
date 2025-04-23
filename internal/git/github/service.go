@@ -492,12 +492,16 @@ func (s *GitHubService) GetUserOrganizations(ctx context.Context, token string) 
 			})
 		}
 
+		fmt.Printf("Token scopes: %s\n", resp.Header.Get("X-OAuth-Scopes"))
+
 		// Check if there are more pages
 		if resp.NextPage == 0 {
 			break
 		}
 		opts.Page = resp.NextPage
 	}
+
+	fmt.Println(allOrgs)
 
 	return allOrgs, nil
 }
