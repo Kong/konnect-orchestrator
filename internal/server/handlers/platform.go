@@ -103,7 +103,7 @@ func (h *PlatformHandler) GetExistingServices(c *gin.Context) {
 
 	// Setup in-memory filesystem
 	fs := memfs.New()
-	fmt.Println(*h.platformGitConfig.Remote)
+
 	// Clone repository in memory
 	r, err := goGit.Clone(memory.NewStorage(), fs, &goGit.CloneOptions{
 		URL:           *h.platformGitConfig.Remote,

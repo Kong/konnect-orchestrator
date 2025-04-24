@@ -18,7 +18,7 @@ const routes = [
     name: 'dashboard',
     component: DashboardView,
     meta: {
-      title: 'Dashboard - GitHub Explorer',
+      title: 'Dashboard - Reference Platform',
       requiresAuth: true
     }
   },
@@ -42,6 +42,7 @@ const router = createRouter({
   routes
 });
 
+// Updated router.beforeEach in src/router/index.js
 router.beforeEach(async (to, from, next) => {
   console.log('Navigation guard running', { 
     to: to.path,
@@ -49,7 +50,7 @@ router.beforeEach(async (to, from, next) => {
   });
   
   // Update document title
-  document.title = to.meta.title || 'GitHub Explorer';
+  document.title = to.meta.title || 'Reference Platform';
   
   const authStore = useAuthStore();
   
@@ -61,7 +62,6 @@ router.beforeEach(async (to, from, next) => {
   }
   
   // Skip initialization if authentication has already failed
-  // This prevents repeated API calls to /api/user when logged out
   const needsInit = !authStore.initialized && 
                    to.matched.some(record => record.meta.requiresAuth) &&
                    !authStore.authenticationFailed;

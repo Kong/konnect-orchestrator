@@ -1,15 +1,12 @@
+// src/plugins/auth-plugin.js
 import { useAuthStore } from '@/stores/auth';
 
 export default {
   install: (app) => {
     const authStore = useAuthStore();
     
-    // Check local storage for auth token to prevent unnecessary API calls
-    const hasToken = localStorage.getItem('auth_token') || 
-                   document.cookie.includes('auth_token=');
-    
-    // Only try to initialize if we have a token or haven't tried before
-    if (hasToken && !authStore.authenticationFailed) {
+    // Don't check localStorage, just initialize if we haven't failed auth already
+    if (!authStore.authenticationFailed) {
       authStore.init().catch(err => {
         console.error('Auth initialization error:', err);
       });

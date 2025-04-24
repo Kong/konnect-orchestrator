@@ -1,4 +1,4 @@
-// Authentication store using Pinia
+// src/stores/auth.js
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import api, { setCsrfToken as setApiCsrfToken, getCsrfToken } from '@/services/api';
@@ -10,7 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const error = ref(null);
   const initialized = ref(false);
   const recentlyLoggedOut = ref(false);
-  const authenticationFailed = ref(false); // Add this flag
+  const authenticationFailed = ref(false);
   
   // Getters (computed)
   const isAuthenticated = computed(() => {
@@ -114,8 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = null;
       initialized.value = false;  // Force re-initialization on next check
       setCsrfToken('');
-      localStorage.removeItem('auth_token');
-      sessionStorage.removeItem('csrf_token'); // Also clear from sessionStorage
+      sessionStorage.removeItem('csrf_token'); // Clear from sessionStorage
       
       // Set flags to prevent immediate re-authentication
       recentlyLoggedOut.value = true;
@@ -133,16 +132,6 @@ export const useAuthStore = defineStore('auth', () => {
     // If already initialized and authenticated, return immediately
     if (initialized.value && user.value) {
       return Promise.resolve(true);
-    }
-    
-    // Check for auth token before making API call
-    const hasToken = localStorage.getItem('auth_token') || 
-                    document.cookie.includes('auth_token=');
-    
-    if (!hasToken) {
-      // No token means no auth, avoid API call
-      initialized.value = true;
-      return Promise.resolve(false);
     }
     
     return new Promise(async (resolve) => {
@@ -176,7 +165,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     initialized,
     recentlyLoggedOut,
-    authenticationFailed, // Include the new flag
+    authenticationFailed,
     
     // Getters
     isAuthenticated,
@@ -190,6 +179,6 @@ export const useAuthStore = defineStore('auth', () => {
     setSessionCsrfToken,
     logout,
     init,
-    reset // Include the new method
+    reset
   };
 });
