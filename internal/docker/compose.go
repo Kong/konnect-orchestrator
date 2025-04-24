@@ -31,7 +31,7 @@ func ComposeUp(ctx context.Context, file, projectName string, additionalArgs ...
 		ComposeFile: composeFile,
 		Directory:   tmpDir,
 	}
-	newArgs := []string{"up", "-d"}
+	newArgs := []string{"up", "-d", "--pull=always", "--remove-orphans"}
 	args := append(newArgs, additionalArgs...)
 
 	if err := runComposeCmd(ctx, instance, args...); err != nil {
