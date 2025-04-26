@@ -1,19 +1,23 @@
 package runprogram
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/Kong/konnect-orchestrator/internal/config"
+	"github.com/Kong/konnect-orchestrator/internal/docker"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 type model struct {
-	currentView    runView
-	welcome        *welcomeView
-	setupGitHubApp *setupGitHubAppView
+	currentView       runView
+	welcome           *welcomeView
+	setupGitHubApp    *setupGitHubAppView
+	setupPlatformRepo *setupPlatformRepoView
+	focusedIndex      int
 }
 
 type runView interface {
@@ -28,20 +32,18 @@ var (
 	noStyle      = lipgloss.NewStyle()
 	exitButton   = "Exit"
 	nextButton   = "Next"
-	prevButton   = "Back"
+	backButton   = "Back"
+	runButton    = "Run"
 )
 
-type inputsProvider interface {
-	getInputs() []textinput.Model
-}
-
-type welcomeView struct {
-	focusIndex int
-}
+type welcomeView struct{}
 
 type setupGitHubAppView struct {
-	focusIndex int
-	inputs     []textinput.Model
+	inputs []textinput.Model
+}
+
+type setupPlatformRepoView struct {
+	inputs []textinput.Model
 }
 
 func focusButton(btn string) string {
@@ -52,16 +54,13 @@ func blurButton(btn string) string {
 	return fmt.Sprintf("[ %s ]", blurredStyle.Render(btn))
 }
 
-func (v *welcomeView) getInputs() []textinput.Model {
-	return nil
-}
-func (v *welcomeView) view(_ *model) string {
+func (v *welcomeView) view(m *model) string {
 	var b strings.Builder
 	b.WriteString("How to run the Konnect Reference Platform Self Service App\n")
-	if v.focusIndex == 0 {
-		fmt.Fprintf(&b, "\n%s\t%s\n\n", focusButton(exitButton), blurButton(nextButton))
+	if m.focusedIndex == 0 {
+		fmt.Fprintf(&b, "\n%s     %s\n\n", focusButton(exitButton), blurButton(nextButton))
 	} else {
-		fmt.Fprintf(&b, "\n%s\t%s\n\n", blurButton(exitButton), focusButton(nextButton))
+		fmt.Fprintf(&b, "\n%s     %s\n\n", blurButton(exitButton), focusButton(nextButton))
 	}
 	return b.String()
 }
@@ -71,87 +70,192 @@ func (v *welcomeView) update(m model, msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type { //nolint:exhaustive
 		case tea.KeyTab:
-			if v.focusIndex == 0 {
-				v.focusIndex = 1
+			if m.focusedIndex == 0 {
+				m.focusedIndex = 1
 			} else {
-				v.focusIndex = 0
+				m.focusedIndex = 0
 			}
 		case tea.KeyEnter:
-			if v.focusIndex == 0 {
+			if m.focusedIndex == 0 {
 				return m, tea.Quit
-			} // else
+			}
+			m.focusedIndex = 0
 			m.currentView = m.setupGitHubApp
+			m.setupGitHubApp.inputs[0].PromptStyle = focusedStyle
+			m.setupGitHubApp.inputs[0].TextStyle = focusedStyle
+			return m, m.setupGitHubApp.inputs[0].Focus()
 		}
 	}
 	return m, nil
 }
 
-func (v *setupGitHubAppView) getInputs() []textinput.Model {
-	return v.inputs
-}
-
-func (v *setupGitHubAppView) view(_ *model) string {
+func (v *setupGitHubAppView) view(m *model) string {
 	var b strings.Builder
-	b.WriteString("Setup GitHub App View\n\n")
+	b.WriteString("Setup GitHub App OAuth\n\n")
+	b.WriteString("This step helps you configure the OAuth credentials\n")
+	b.WriteString("for the GitHub App needed to run the self service app authorized to GitHub.\n\n")
+
 	for i := 0; i < len(v.inputs); i++ {
 		b.WriteString(v.inputs[i].View())
 		if i < len(v.inputs)-1 {
 			b.WriteRune('\n')
 		}
 	}
-	fmt.Fprintf(&b, "\n\n%s\t%s\n\n", blurButton(prevButton), blurButton(nextButton))
+
+	if m.focusedIndex == len(v.inputs) {
+		fmt.Fprintf(&b, "\n\n%s     %s\n\n", blurButton(backButton), focusButton(nextButton))
+	} else if m.focusedIndex == len(v.inputs)+1 {
+		fmt.Fprintf(&b, "\n\n%s     %s\n\n", focusButton(backButton), blurButton(nextButton))
+	} else {
+		fmt.Fprintf(&b, "\n\n%s     %s\n\n", blurButton(backButton), blurButton(nextButton))
+	}
+
 	return b.String()
 }
 
 func (v *setupGitHubAppView) update(m model, msg tea.Msg) (tea.Model, tea.Cmd) {
-	updateInputs := func() []tea.Cmd {
-		rv := make([]tea.Cmd, len(v.inputs))
-		for i := range v.inputs {
-			if i == v.focusIndex {
-				rv[i] = v.inputs[i].Focus()
-				v.inputs[i].PromptStyle = focusedStyle
-				v.inputs[i].TextStyle = focusedStyle
-			} else {
-				v.inputs[i].Blur()
-				v.inputs[i].PromptStyle = noStyle
-				v.inputs[i].TextStyle = noStyle
-			}
-		}
-		return rv
-	}
-
-	//var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type { //nolint:exhaustive
 		case tea.KeyTab, tea.KeyDown, tea.KeyShiftTab, tea.KeyUp, tea.KeyEnter:
 			s := msg.String()
 
-			if s == "tab" || s == "down" {
-				v.focusIndex++
-				if v.focusIndex > len(v.inputs) {
-					v.focusIndex = 0
+			// if Enter is pressed on Next button, move to next view
+			// if Enter is pressed on Previous button, move to previous view
+			// otherwise, advance focus
+			if s == "enter" {
+				if m.focusedIndex == len(v.inputs) {
+					// Next button
+					m.focusedIndex = 0
+					m.currentView = m.setupPlatformRepo
+					m.setupPlatformRepo.inputs[0].PromptStyle = focusedStyle
+					m.setupPlatformRepo.inputs[0].TextStyle = focusedStyle
+					return m, m.setupPlatformRepo.inputs[0].Focus()
+				} else if m.focusedIndex == len(v.inputs)+1 {
+					// Previous button
+					m.focusedIndex = 1
+					m.currentView = m.welcome
+					return m, textinput.Blink
 				}
-				//cmds = updateInputs()
 			}
 
-			//v.focusIndex--
-			//if v.focusIndex < 0 {
-			//	v.focusIndex = len(v.inputs)
-			//}
-			//cmds = updateInputs()
+			if s == "up" || s == "shift+tab" {
+				m.focusedIndex--
+			} else {
+				m.focusedIndex++
+			}
+			if m.focusedIndex > len(v.inputs)+1 {
+				m.focusedIndex = 0
+			} else if m.focusedIndex < 0 {
+				m.focusedIndex = len(v.inputs) + 1
+			}
 
-			//// if Enter is pressed on Next button, move to next view
-			//// if Enter is pressed on Previous button, move to previous view
-			//// otherwise, advance focus
-			////return m, nil
+			cmds := make([]tea.Cmd, len(v.inputs))
+			for i := 0; i <= len(v.inputs)-1; i++ {
+				if i == m.focusedIndex {
+					// Set focused state
+					cmds[i] = v.inputs[i].Focus()
+					v.inputs[i].PromptStyle = focusedStyle
+					v.inputs[i].TextStyle = focusedStyle
+					continue
+				}
+				// Remove focused state
+				v.inputs[i].Blur()
+				v.inputs[i].PromptStyle = noStyle
+				v.inputs[i].TextStyle = noStyle
+			}
 
-			//return m, tea.Batch(cmds...)
+			return m, tea.Batch(cmds...)
 		}
 	}
 
-	updateInputs()
-	return m, nil
+	// Handle character input and blinking
+	cmd := updateInputs(v.inputs, msg)
+
+	return m, cmd
+}
+
+func (v *setupPlatformRepoView) view(m *model) string {
+	var b strings.Builder
+	b.WriteString("Setup Platform Repo\n\n")
+
+	for i := 0; i < len(v.inputs); i++ {
+		b.WriteString(v.inputs[i].View())
+		if i < len(v.inputs)-1 {
+			b.WriteRune('\n')
+		}
+	}
+
+	if m.focusedIndex == len(v.inputs) {
+		fmt.Fprintf(&b, "\n\n%s     %s\n\n", blurButton(backButton), focusButton(runButton))
+	} else if m.focusedIndex == len(v.inputs)+1 {
+		fmt.Fprintf(&b, "\n\n%s     %s\n\n", focusButton(backButton), blurButton(runButton))
+	} else {
+		fmt.Fprintf(&b, "\n\n%s     %s\n\n", blurButton(backButton), blurButton(runButton))
+	}
+	return b.String()
+}
+
+func (v *setupPlatformRepoView) update(m model, msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type { //nolint:exhaustive
+		case tea.KeyTab, tea.KeyDown, tea.KeyShiftTab, tea.KeyUp, tea.KeyEnter:
+			s := msg.String()
+
+			// if Enter is pressed on Next button, move to next view
+			// if Enter is pressed on Previous button, move to previous view
+			// otherwise, advance focus
+			if s == "enter" {
+				if m.focusedIndex == len(v.inputs) {
+					// Next button
+					run(m.setupGitHubApp.inputs[0].Value(), m.setupGitHubApp.inputs[1].Value(),
+						m.setupPlatformRepo.inputs[0].Value(), m.setupPlatformRepo.inputs[1].Value())
+					return m, tea.Quit
+				} else if m.focusedIndex == len(v.inputs)+1 {
+					// Previous button
+					m.focusedIndex = 0
+					m.currentView = m.setupGitHubApp
+					m.setupGitHubApp.inputs[0].PromptStyle = focusedStyle
+					m.setupGitHubApp.inputs[0].TextStyle = focusedStyle
+					return m, m.setupGitHubApp.inputs[0].Focus()
+				}
+			}
+
+			if s == "up" || s == "shift+tab" {
+				m.focusedIndex--
+			} else {
+				m.focusedIndex++
+			}
+			if m.focusedIndex > len(v.inputs)+1 {
+				m.focusedIndex = 0
+			} else if m.focusedIndex < 0 {
+				m.focusedIndex = len(v.inputs) + 1
+			}
+
+			cmds := make([]tea.Cmd, len(v.inputs))
+			for i := 0; i <= len(v.inputs)-1; i++ {
+				if i == m.focusedIndex {
+					// Set focused state
+					cmds[i] = v.inputs[i].Focus()
+					v.inputs[i].PromptStyle = focusedStyle
+					v.inputs[i].TextStyle = focusedStyle
+					continue
+				}
+				// Remove focused state
+				v.inputs[i].Blur()
+				v.inputs[i].PromptStyle = noStyle
+				v.inputs[i].TextStyle = noStyle
+			}
+
+			return m, tea.Batch(cmds...)
+		}
+	}
+
+	// Handle character input and blinking
+	cmd := updateInputs(v.inputs, msg)
+
+	return m, cmd
 }
 
 func updateInputs(inputs []textinput.Model, msg tea.Msg) tea.Cmd {
@@ -167,32 +271,60 @@ func updateInputs(inputs []textinput.Model, msg tea.Msg) tea.Cmd {
 }
 
 func initialModel(cfg config.Config) model {
-	m := model{}
-	m.welcome = &welcomeView{
-		focusIndex: 1,
+	m := model{
+		focusedIndex: 1,
 	}
+	m.welcome = &welcomeView{}
 	m.currentView = m.welcome
 
-	m.setupGitHubApp = &setupGitHubAppView{
-		focusIndex: 0,
-	}
+	m.setupGitHubApp = &setupGitHubAppView{}
 	m.setupGitHubApp.inputs = make([]textinput.Model, 2)
 	m.setupGitHubApp.inputs[0] = textinput.New()
 	m.setupGitHubApp.inputs[0].Prompt = "GitHub Client ID: "
 	m.setupGitHubApp.inputs[0].SetValue(cfg.GitHubClientID)
 	m.setupGitHubApp.inputs[0].PromptStyle = focusedStyle
 	m.setupGitHubApp.inputs[0].TextStyle = focusedStyle
+	m.setupGitHubApp.inputs[0].Cursor.Style = cursorStyle
 
 	m.setupGitHubApp.inputs[1] = textinput.New()
 	m.setupGitHubApp.inputs[1].Prompt = "GitHub Client Secret: "
 	m.setupGitHubApp.inputs[1].SetValue(cfg.GitHubClientSecret)
+	m.setupGitHubApp.inputs[1].EchoMode = textinput.EchoPassword
 	m.setupGitHubApp.inputs[1].EchoCharacter = '•'
+	m.setupGitHubApp.inputs[1].Cursor.Style = cursorStyle
+
+	m.setupPlatformRepo = &setupPlatformRepoView{}
+	m.setupPlatformRepo.inputs = make([]textinput.Model, 2)
+	m.setupPlatformRepo.inputs[0] = textinput.New()
+	m.setupPlatformRepo.inputs[0].Prompt = "Platform Repo URL: "
+	m.setupPlatformRepo.inputs[0].SetValue(cfg.PlatformRepoURL)
+	m.setupPlatformRepo.inputs[0].PromptStyle = focusedStyle
+	m.setupPlatformRepo.inputs[0].TextStyle = focusedStyle
+	m.setupPlatformRepo.inputs[0].Cursor.Style = cursorStyle
+
+	m.setupPlatformRepo.inputs[1] = textinput.New()
+	m.setupPlatformRepo.inputs[1].Prompt = "Platform Repo GitHub Token: "
+	m.setupPlatformRepo.inputs[1].SetValue(cfg.PlatformRepoGHToken)
+	m.setupPlatformRepo.inputs[1].EchoMode = textinput.EchoPassword
+	m.setupPlatformRepo.inputs[1].EchoCharacter = '•'
+	m.setupPlatformRepo.inputs[1].Cursor.Style = cursorStyle
 
 	return m
 }
 
+func run(githubClientID, githubClientSecret, platformRepoURL, platformRepoGHToken string) {
+	// expose the arguments as env variables to the docker containers
+	envVars := map[string]string{
+		"GITHUB_CLIENT_ID":           githubClientID,
+		"GITHUB_CLIENT_SECRET":       githubClientSecret,
+		"PLATFORM_REPO_URL":          platformRepoURL,
+		"PLATFORM_REPO_GITHUB_TOKEN": platformRepoGHToken,
+	}
+	_, _ = docker.ComposeUp(context.Background(), docker.KoctlRunComposeFile, "koctl-run", envVars)
+}
+
 func (m model) Init() tea.Cmd {
-	return nil
+	return textinput.Blink
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -203,6 +335,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
+
 	return m.currentView.update(m, msg)
 }
 
