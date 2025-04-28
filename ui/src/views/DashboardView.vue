@@ -129,7 +129,7 @@ import RepoDropdown from '@/components/RepoDropdown.vue';
 import OrgDropdown from '@/components/OrgDropdown.vue';
 import PullRequestList from '@/components/PullRequestList.vue';
 import ServicesPanel from '@/components/ServicesPanel.vue';
-import { onMounted, watch, ref, computed } from 'vue';
+import { onMounted, watch, ref, computed, onUnmounted } from 'vue';
 import { useApiRequest } from '@/composables/useApiRequest';
 import { useToast } from '@/composables/useToast';
 
@@ -141,6 +141,8 @@ const { loading: sendingRepo, error: sendError, execute } = useApiRequest();
 const title = import.meta.env.VITE_APP_TITLE
 const repoDropdown = ref(null);
 const servicesPanel = ref(null);
+let servicesPollInterval = null; // Store the interval reference
+let prPollInterval = null; // Store the PR polling interval reference
 
 // Service configuration state
 const prodBranch = ref('prod');
@@ -151,13 +153,37 @@ const addingNewTeam = ref(false);
 
 const toast = useToast();
 
-// Check authentication on component mount
+// Start polling services every 30 seconds
 onMounted(() => {
   if (!authStore.isAuthenticated) {
     router.push('/');
   } else {
     authStore.loadUser();
     githubStore.fetchOrganizations();
+    
+    // Start polling services every 30 seconds
+    servicesPollInterval = setInterval(() => {
+      if (servicesPanel.value) {
+        servicesPanel.value.fetchServices();
+      }
+    }, 30000); // 30 seconds
+    
+    // Start polling PRs every 30 seconds
+    prPollInterval = setInterval(() => {
+      githubStore.fetchPullRequests(true).catch(err => {
+        console.error('Background PR refresh failed:', err);
+      });
+    }, 30000); // 30 seconds
+  }
+});
+
+// Clean up interval when component is unmounted
+onUnmounted(() => {
+  if (servicesPollInterval) {
+    clearInterval(servicesPollInterval);
+  }
+  if (prPollInterval) {
+    clearInterval(prPollInterval);
   }
 });
 
@@ -207,15 +233,15 @@ const sendServiceRepoInfo = async () => {
     
     // Show success
     toast.success('Service added successfully!');
-
-    // Refresh services list
-    servicesPanel.value.fetchServices();
     
-    // Optionally, refresh pull requests in the background
-    githubStore.fetchPullRequests(true).catch(err => {
-      console.error('Background PR refresh failed:', err);
-      toast.warning('Background pull request refresh failed. Try refreshing the page if updates are missing.');
-    });
+    // Wait 2 seconds before refreshing the PR list
+    setTimeout(() => {
+      // Refresh pull requests in the background
+      githubStore.fetchPullRequests(true).catch(err => {
+        console.error('Background PR refresh failed:', err);
+        toast.warning('Background pull request refresh failed. Try refreshing the page if updates are missing.');
+      });
+    }, 2000);
   } catch (error) {
     // Error handling happens in the execute function
     console.error('Service registration error:', error);
