@@ -28,8 +28,8 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/server"
 	"github.com/Kong/konnect-orchestrator/internal/tea/addorgprogram"
 	"github.com/Kong/konnect-orchestrator/internal/tea/initprogram"
+	"github.com/Kong/konnect-orchestrator/internal/tea/runprogram"
 	"github.com/Kong/konnect-orchestrator/internal/util"
-	koUtil "github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
 	kkInternal "github.com/Kong/sdk-konnect-go-internal"
 	kkInternalComps "github.com/Kong/sdk-konnect-go-internal/models/components"
@@ -45,29 +45,6 @@ const (
 	defaultOrchestratorPath = "konnect/"
 	defaultTeamsFilePath    = defaultOrchestratorPath + "teams.yaml"
 	defaultOrgsFilePath     = defaultOrchestratorPath + "organizations.yaml"
-
-	composeFile = `services:
-  koctl-api:
-    image: ghcr.io/kong/koctl:latest
-    ports:
-      - "8080:8080"
-    environment:
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - PLATFORM_REPO_URL=${PLATFORM_REPO_URL}
-      - PLATFORM_REPO_GITHUB_TOKEN=${PLATFORM_REPO_GITHUB_TOKEN}
-      - FRONTEND_URL=http://localhost:8081
-      - GITHUB_REDIRECT_URI=http://localhost:8080/auth/github/callback
-    command: ["run", "api"]
-  koctl-ui:
-    image: ghcr.io/kong/koctl-ui:latest
-    ports:
-      - "8081:8081"
-    environment:
-      - VITE_API_BASE_URL=http://koctl-api:8080
-    depends_on:
-      - koctl-api
-`
 )
 
 var (
@@ -644,7 +621,7 @@ func applyOrganization(
 	teams map[string]*manifest.Team,
 ) error {
 	// Resolve the organization's access token
-	accessToken, err := koUtil.ResolveSecretValue(orgConfig.AccessToken)
+	accessToken, err := util.ResolveSecretValue(orgConfig.AccessToken)
 	if err != nil {
 		return fmt.Errorf("failed to resolve access token for organization %s: %w", orgName, err)
 	}
@@ -720,12 +697,6 @@ func applyOrganization(
 
 	fmt.Printf("Successfully applied configuration for organization: %s\n", orgName)
 	return nil
-}
-
-func loadPlatformManifest(path string) (*manifest.Platform, error) {
-	var rv manifest.Orchestrator
-	err := util.ReadConfigFile(path, &rv)
-	return rv.Platform, err
 }
 
 func loadPlatformGitCfgFromConfig(config *config.Config) manifest.GitConfig {
@@ -875,6 +846,7 @@ func runAddOrganizationDirect(cfg *config.Config) error {
 		}
 	}
 }
+
 func runAddOrganization(_ *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -918,6 +890,7 @@ func runInitDirect(cfg *config.Config) error {
 		}
 	}
 }
+
 func runInit(_ *cobra.Command, _ []string) error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -955,20 +928,27 @@ func runApply(_ *cobra.Command, _ []string) error {
 	}
 }
 
-func runRun(_ *cobra.Command, _ []string) error {
-	_, err := config.LoadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
-	instance, err := docker.ComposeUp(context.Background(), composeFile, "koctl-run")
+func runRunDirect() error {
+	_, err := docker.ComposeUp(context.Background(), docker.KoctlRunComposeFile, "koctl-run", nil)
 	if err != nil {
 		return fmt.Errorf("failed to run docker: %w", err)
 	}
 
-	fmt.Println("")
-	fmt.Println("To stop the project, run:")
-	fmt.Printf("\tdocker compose --project-name %s down\n", instance.ProjectName)
 	return nil
+}
+
+func runRun(_ *cobra.Command, _ []string) error {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	if cfg.PlatformRepoGHToken != "" && cfg.PlatformRepoURL != "" &&
+		cfg.GitHubClientID != "" && cfg.GitHubClientSecret != "" {
+		return runRunDirect()
+	}
+
+	return runprogram.Execute(*cfg)
 }
 
 func runRunUI(_ *cobra.Command, _ []string) error {
@@ -976,14 +956,14 @@ func runRunUI(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
-	instance, err := docker.ComposeUp(context.Background(), composeFile, "koctl-run", "--no-deps", "koctl-ui")
+	instance, err := docker.ComposeUp(context.Background(), docker.KoctlRunComposeFile, "koctl-run", nil, "--no-deps", "koctl-ui")
 	if err != nil {
 		return fmt.Errorf("failed to run docker: %w", err)
 	}
 
 	fmt.Println("")
 	fmt.Println("To stop the project, run:")
-	fmt.Printf("\tdocker compose --project-name %s down\n", instance.ProjectName)
+	fmt.Printf("docker compose --project-name %s down\n", instance.ProjectName)
 	return nil
 }
 
@@ -1004,7 +984,7 @@ func runRunAPI(_ *cobra.Command, _ []string) error {
 
 func runRunExport(_ *cobra.Command, _ []string) error {
 	// write the composeFile variable out to stdout as yaml
-	fmt.Print(composeFile)
+	fmt.Print(docker.KoctlRunComposeFile)
 	return nil
 }
 

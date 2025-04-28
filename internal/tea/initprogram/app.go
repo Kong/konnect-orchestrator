@@ -47,7 +47,7 @@ func initialModel(files embed.FS, c config.Config, createNewRepo bool) model {
 		resourceFiles: files,
 	}
 
-	var createNewRepoValue = "N"
+	createNewRepoValue := "N"
 	if createNewRepo {
 		createNewRepoValue = "Y"
 	}
@@ -118,7 +118,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyTab, tea.KeyShiftTab, tea.KeyEnter, tea.KeyUp, tea.KeyDown:
 			s := msg.String()
 
-			var createNewRepo = false
+			createNewRepo := false
 			if strings.ToLower(m.inputs[2].Value()) == "y" {
 				createNewRepo = true
 			}
