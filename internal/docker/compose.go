@@ -114,9 +114,8 @@ func runComposeCmd(ctx context.Context, instance *ComposeInstance, args ...strin
 		return fmt.Errorf("runCompose: %w", err)
 	}
 
-	fmt.Println("")
-	fmt.Println("To stop the project, run:")
-	fmt.Printf("docker compose --project-name %s down\n", instance.ProjectName)
+	fmt.Fprint(os.Stdout, "\r\n")
+	fmt.Fprintln(os.Stdout, "To stop the project, run: docker compose --project-name koctl-run down")
 
 	return nil
 }

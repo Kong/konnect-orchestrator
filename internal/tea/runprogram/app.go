@@ -26,7 +26,7 @@ type runView interface {
 }
 
 var (
-	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#286FEB"))
 	blurredStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	cursorStyle  = focusedStyle
 	noStyle      = lipgloss.NewStyle()
@@ -56,12 +56,20 @@ func blurButton(btn string) string {
 
 func (v *welcomeView) view(m *model) string {
 	var b strings.Builder
-	b.WriteString("How to run the Konnect Reference Platform Self Service App\n")
+	b.WriteString("This command will guide you through running the Konnect Reference Platform\n")
+	b.WriteString("self-service UI application. The self-service app allows teams to onboard\n")
+	b.WriteString("themselves and their services to the Konnect Reference Platform.\n\n")
+	b.WriteString("For more information on the reference platform:\n")
+	b.WriteString("  https://developer.konghq.com/konnect-reference-platform\n\n")
+	b.WriteString("On the following screens, press Tab to navigate between the buttons and inputs,\n")
+	b.WriteString("and Enter to select the focused button.\n\n")
+
 	if m.focusedIndex == 0 {
 		fmt.Fprintf(&b, "\n%s     %s\n\n", focusButton(exitButton), blurButton(nextButton))
 	} else {
 		fmt.Fprintf(&b, "\n%s     %s\n\n", blurButton(exitButton), focusButton(nextButton))
 	}
+
 	return b.String()
 }
 
@@ -91,9 +99,11 @@ func (v *welcomeView) update(m model, msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (v *setupGitHubAppView) view(m *model) string {
 	var b strings.Builder
-	b.WriteString("Setup GitHub App OAuth\n\n")
-	b.WriteString("This step helps you configure the OAuth credentials\n")
-	b.WriteString("for the GitHub App needed to run the self service app authorized to GitHub.\n\n")
+	b.WriteString("The Reference Platform self-service application identifies\nitself to GitHub using the OAuth Apps integration.\n\n")
+	b.WriteString("Before proceeding, you will need an OAuth Client ID and secret\nwhich are created within GitHub.\n\n")
+	b.WriteString("For details on properly creating and configuring an OAuth App, see:\n")
+	b.WriteString("  https://developer.konghq.com/konnect-reference-platform/self-service\n\n")
+	b.WriteString("Once you have created the OAuth App, enter the Client ID and secret below.\n\n")
 
 	for i := 0; i < len(v.inputs); i++ {
 		b.WriteString(v.inputs[i].View())
@@ -177,7 +187,15 @@ func (v *setupGitHubAppView) update(m model, msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (v *setupPlatformRepoView) view(m *model) string {
 	var b strings.Builder
-	b.WriteString("Setup Platform Repo\n\n")
+	b.WriteString("When a development team uses the self-service app to onboard an API they\n")
+	b.WriteString("build, the self-service application files a PR to the central platform\n")
+	b.WriteString("repository introducing the necessary changes.\n\n")
+	b.WriteString("The self-service app needs to be able to authenticate to that\n")
+	b.WriteString("repository using a GitHub token.\n\n")
+	b.WriteString("For details on properly creating and configuring a GitHub repository and token, see:\n")
+	b.WriteString("  https://developer.konghq.com/konnect-reference-platform/self-service\n\n")
+	b.WriteString("Once you have created the GitHub token, enter the Platform Repo URL and\n")
+	b.WriteString("GitHub token below.\n\n")
 
 	for i := 0; i < len(v.inputs); i++ {
 		b.WriteString(v.inputs[i].View())

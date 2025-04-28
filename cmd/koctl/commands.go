@@ -963,7 +963,7 @@ func runRunUI(_ *cobra.Command, _ []string) error {
 
 	fmt.Println("")
 	fmt.Println("To stop the project, run:")
-	fmt.Printf("\tdocker compose --project-name %s down\n", instance.ProjectName)
+	fmt.Printf("docker compose --project-name %s down\n", instance.ProjectName)
 	return nil
 }
 
