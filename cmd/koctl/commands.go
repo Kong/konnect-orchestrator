@@ -526,8 +526,12 @@ func applyTeam(teamName string,
 			branchName,
 			fmt.Sprintf("[Konnect Orchestrator] - Changes for [%s] environment", envName),
 			fmt.Sprintf(
-				"For the %s environment, Konnect Orchestrator has detected changes in upstream service repositories "+
-					"and has generated the associated changes.", envName,
+				`**Environment:** %s 
+				
+				Konnect Orchestrator has detected changes in upstream service repositories 
+				and has generated the appropriate updates.
+				
+				Review and merge this PR to create or update the deck file (s).`, envName,
 			),
 			*platformGit.GitHub,
 			nil,
