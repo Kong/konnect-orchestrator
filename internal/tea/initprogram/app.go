@@ -41,16 +41,16 @@ type model struct {
 	lastMsg       tea.Msg
 }
 
-func initialModel(files embed.FS, c config.Config, createNewRepo bool) model {
+func initialModel(files embed.FS, c config.Config, _ bool) model {
 	m := model{
-		inputs:        make([]textinput.Model, 3),
+		inputs:        make([]textinput.Model, 2),
 		resourceFiles: files,
 	}
 
-	createNewRepoValue := "N"
-	if createNewRepo {
-		createNewRepoValue = "Y"
-	}
+	//createNewRepoValue := "N"
+	//if createNewRepo {
+	//	createNewRepoValue = "Y"
+	//}
 
 	var t textinput.Model
 	for i := range m.inputs {
@@ -71,11 +71,11 @@ func initialModel(files embed.FS, c config.Config, createNewRepo bool) model {
 			t.SetValue(c.PlatformRepoGHToken)
 			t.EchoMode = textinput.EchoPassword
 			t.EchoCharacter = '•'
-		case 2:
-			t.Prompt = "Create Repo? [Y/N]: "
-			t.SetValue(createNewRepoValue)
-			t.CharLimit = 1
-			t.Width = 20
+			// case 2:
+			//	t.Prompt = "Create Repo? [Y/N]: "
+			//	t.SetValue(createNewRepoValue)
+			//	t.CharLimit = 1
+			//	t.Width = 20
 		}
 		m.inputs[i] = t
 	}
@@ -119,8 +119,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s := msg.String()
 
 			createNewRepo := false
-			if strings.ToLower(m.inputs[2].Value()) == "y" {
-				createNewRepo = true
+			//if strings.ToLower(m.inputs[2].Value()) == "y" {
+			//	createNewRepo = true
+			//}
+
+			if s == "enter" && m.focusIndex == len(m.inputs) {
+				run(m.inputs[0].Value(), m.inputs[1].Value(), createNewRepo, m.resourceFiles)
 			}
 
 			// Cycle indexes
@@ -149,10 +153,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputs[i].Blur()
 				m.inputs[i].PromptStyle = noStyle
 				m.inputs[i].TextStyle = noStyle
-			}
-
-			if s == "enter" && m.focusIndex == len(m.inputs) {
-				run(m.inputs[0].Value(), m.inputs[1].Value(), createNewRepo, m.resourceFiles)
 			}
 
 			return m, tea.Batch(cmds...)
@@ -200,8 +200,8 @@ func (m model) View() string {
 	b.WriteString("In order to initialize the repository, we must collect\n")
 	b.WriteString("two pieces of information. The GitHub URL and a GitHub token\n")
 	b.WriteString("that has access to the repository.\n\n")
-	b.WriteString("See the FAQ page for details on the token permission requirements:\n")
-	b.WriteString("https://deploy-preview-783--kongdeveloper.netlify.app/konnect-reference-platform/faq/\n\n")
+	b.WriteString("See the documentation for details on the token permission requirements:\n")
+	b.WriteString("https://developer.konghq.com/konnect-reference-platform\n\n")
 
 	for i := range m.inputs {
 		b.WriteString(m.inputs[i].View())
