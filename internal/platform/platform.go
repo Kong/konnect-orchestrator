@@ -107,7 +107,9 @@ func Init(platformGitCfg manifest.GitConfig, resourceFiles embed.FS, statusCh ch
 			branchName,
 			"[Konnect Orchestrator] - Init Platform",
 			`The Konnect Orchestrator 'init' function was executed and filed this PR to initialize the Platform repository, 
-			including GitHub Actions and default configuration files.`,
+			including GitHub Actions and default configuration files.
+			
+			Review and merge this PR to complete the Platform repository initialization (no actions will be performed except for the creation of the repository and github actions)`,
 			*platformGitCfg.GitHub,
 			nil,
 		)
