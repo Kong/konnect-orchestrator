@@ -861,10 +861,6 @@ func runAddOrganization(_ *cobra.Command, _ []string) error {
 		cfg.OrgName = orgNameArg
 	}
 
-	if err = github.ValidateOrgName(cfg.OrgName); err != nil {
-		return err
-	}
-
 	if orgKonnectTokenArg != "" {
 		cfg.KonnectToken = orgKonnectTokenArg
 	}

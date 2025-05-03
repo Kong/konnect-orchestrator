@@ -159,6 +159,9 @@ func AddOrganization(
 	//		We prompt the user to provide the following:
 	//			Organization name (we slugify for a YAML key)
 	//			Konnect Token:
+	if err := github.ValidateOrgName(orgName); err != nil {
+		return fmt.Errorf("invalid organization name: %w", err)
+	}
 
 	defer close(statusCh)
 
