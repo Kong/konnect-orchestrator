@@ -198,7 +198,7 @@ func (m model) View() string {
 	b.WriteString("https://konghq.com/products/kong-konnect/register\n\n")
 	b.WriteString("For more information on the Konnect Reference Platform\n")
 	b.WriteString("and how Organizations work, visit:\n")
-	b.WriteString("https://deploy-preview-783--kongdeveloper.netlify.app/konnect-reference-platform/faq/\n\n")
+	b.WriteString("https://developer.konghq.com/konnect-reference-platform\n\n")
 
 	for i := range m.inputs {
 		b.WriteString(m.inputs[i].View())
