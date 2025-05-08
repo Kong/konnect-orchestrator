@@ -75,6 +75,7 @@ func Init(platformGitCfg manifest.GitConfig, resourceFiles embed.FS, statusCh ch
 	if err != nil {
 		return fmt.Errorf("failed to copy default konnect/ files: %w", err)
 	}
+	statusCh <- "✔ Added GitHub Action files to .github/workflows directory\n"
 	statusCh <- "✔ Added default files to konnect directory\n"
 
 	err = git.Add(platformRepoDir, ".")
