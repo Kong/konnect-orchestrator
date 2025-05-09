@@ -3,6 +3,7 @@ package runprogram
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/Kong/konnect-orchestrator/internal/config"
@@ -43,7 +44,8 @@ type setupGitHubAppView struct {
 }
 
 type setupPlatformRepoView struct {
-	inputs []textinput.Model
+	inputs     []textinput.Model
+	saveConfig bool
 }
 
 func focusButton(btn string) string {
@@ -187,93 +189,147 @@ func (v *setupGitHubAppView) update(m model, msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (v *setupPlatformRepoView) view(m *model) string {
 	var b strings.Builder
-	b.WriteString("When a development team uses the self-service app to onboard an API they\n")
-	b.WriteString("build, the self-service application files a PR to the central platform\n")
-	b.WriteString("repository introducing the necessary changes.\n\n")
-	b.WriteString("The self-service app needs to be able to authenticate to that\n")
-	b.WriteString("repository using a GitHub token.\n\n")
-	b.WriteString("For details on properly creating and configuring a GitHub repository and token, see:\n")
-	b.WriteString("  https://developer.konghq.com/konnect-reference-platform/self-service\n\n")
-	b.WriteString("Once you have created the GitHub token, enter the Platform Repo URL and\n")
-	b.WriteString("GitHub token below.\n\n")
 
-	for i := 0; i < len(v.inputs); i++ {
+	// … your introductory text …
+
+	// 1) render the two text‐inputs
+	for i := range v.inputs {
 		b.WriteString(v.inputs[i].View())
-		if i < len(v.inputs)-1 {
-			b.WriteRune('\n')
-		}
+		b.WriteRune('\n')
 	}
 
-	if m.focusedIndex == len(v.inputs) {
-		fmt.Fprintf(&b, "\n\n%s     %s\n\n", blurButton(backButton), focusButton(runButton))
-	} else if m.focusedIndex == len(v.inputs)+1 {
-		fmt.Fprintf(&b, "\n\n%s     %s\n\n", focusButton(backButton), blurButton(runButton))
-	} else {
-		fmt.Fprintf(&b, "\n\n%s     %s\n\n", blurButton(backButton), blurButton(runButton))
+	// 2) render the checkbox
+	check := "[ ] Save config to .env file"
+	if v.saveConfig {
+		check = "[X] Save config to .env file"
 	}
+	// if it’s focused, give it the “focus” styling
+	if m.focusedIndex == len(v.inputs) {
+		check = focusedStyle.Render(check)
+	}
+	b.WriteString("\n")
+	b.WriteString(check)
+	b.WriteString("\n\n")
+
+	// 3) render Back / Run buttons
+	backIdx := len(v.inputs) + 1
+	runIdx := len(v.inputs) + 2
+
+	switch m.focusedIndex {
+	case backIdx:
+		fmt.Fprintf(&b, "%s     %s",
+			focusButton(backButton),
+			blurButton(runButton),
+		)
+	case runIdx:
+		fmt.Fprintf(&b, "%s     %s",
+			blurButton(backButton),
+			focusButton(runButton),
+		)
+	default:
+		fmt.Fprintf(&b, "%s     %s",
+			blurButton(backButton),
+			blurButton(runButton),
+		)
+	}
+
 	return b.String()
 }
 
 func (v *setupPlatformRepoView) update(m model, msg tea.Msg) (tea.Model, tea.Cmd) {
+	maxIdx := len(v.inputs) + 2 // inputs + checkbox + Back + Run
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type { //nolint:exhaustive
-		case tea.KeyTab, tea.KeyDown, tea.KeyShiftTab, tea.KeyUp, tea.KeyEnter:
-			s := msg.String()
+		key := msg.String()
 
-			// if Enter is pressed on Next button, move to next view
-			// if Enter is pressed on Previous button, move to previous view
-			// otherwise, advance focus
-			if s == "enter" {
-				if m.focusedIndex == len(v.inputs) {
-					// Next button
-					run(m.setupGitHubApp.inputs[0].Value(), m.setupGitHubApp.inputs[1].Value(),
-						m.setupPlatformRepo.inputs[0].Value(), m.setupPlatformRepo.inputs[1].Value())
-					return m, tea.Quit
-				} else if m.focusedIndex == len(v.inputs)+1 {
-					// Previous button
-					m.focusedIndex = 0
-					m.currentView = m.setupGitHubApp
-					m.setupGitHubApp.inputs[0].PromptStyle = focusedStyle
-					m.setupGitHubApp.inputs[0].TextStyle = focusedStyle
-					return m, m.setupGitHubApp.inputs[0].Focus()
-				}
+		switch key {
+		// ─── Move focus backwards ───────────────────────────────────────
+		case "up", "shift+tab":
+			if m.focusedIndex == len(v.inputs) {
+				// from checkbox back to last text input
+				m.focusedIndex = len(v.inputs) - 1
+			} else {
+				m.focusedIndex--
 			}
 
-			if s == "up" || s == "shift+tab" {
-				m.focusedIndex--
+		// ─── Move focus forwards ────────────────────────────────────────
+		case "down", "tab":
+			if m.focusedIndex == len(v.inputs) {
+				// skip Back, go straight to Run
+				m.focusedIndex = len(v.inputs) + 2
 			} else {
 				m.focusedIndex++
 			}
-			if m.focusedIndex > len(v.inputs)+1 {
+
+		// ─── Enter: advance focus or activate Back/Run ──────────────────
+		case "enter":
+			switch m.focusedIndex {
+			case len(v.inputs):
+				// on checkbox → skip to Run
+				m.focusedIndex = len(v.inputs) + 2
+			case len(v.inputs) + 1:
+				// Back button
 				m.focusedIndex = 0
-			} else if m.focusedIndex < 0 {
-				m.focusedIndex = len(v.inputs) + 1
+				m.currentView = m.setupGitHubApp
+				return m, m.setupGitHubApp.inputs[0].Focus()
+			case len(v.inputs) + 2:
+				// Run button
+				run(
+					m.setupGitHubApp.inputs[0].Value(),
+					m.setupGitHubApp.inputs[1].Value(),
+					m.setupPlatformRepo.inputs[0].Value(),
+					m.setupPlatformRepo.inputs[1].Value(),
+					v.saveConfig,
+				)
+				return m, tea.Quit
+			default:
+				// on any text input → move next
+				m.focusedIndex++
 			}
 
-			cmds := make([]tea.Cmd, len(v.inputs))
-			for i := 0; i <= len(v.inputs)-1; i++ {
-				if i == m.focusedIndex {
-					// Set focused state
-					cmds[i] = v.inputs[i].Focus()
-					v.inputs[i].PromptStyle = focusedStyle
-					v.inputs[i].TextStyle = focusedStyle
-					continue
-				}
-				// Remove focused state
+		// ─── Space: only toggle the checkbox ─────────────────────────────
+		case " ":
+			if m.focusedIndex == len(v.inputs) {
+				v.saveConfig = !v.saveConfig
+				return m, nil
+			}
+			// otherwise fall through to default so text inputs get the space
+
+		// ─── All other keys ─────────────────────────────────────────────
+		default:
+			if m.focusedIndex < len(v.inputs) {
+				// forward typing, backspace, delete, etc.
+				return m, updateInputs(v.inputs, msg)
+			}
+			return m, nil
+		}
+
+		// ─── Wrap‐around focus index ────────────────────────────────────
+		if m.focusedIndex < 0 {
+			m.focusedIndex = maxIdx
+		} else if m.focusedIndex > maxIdx {
+			m.focusedIndex = 0
+		}
+
+		// ─── Update text‐input focus/blur styling ───────────────────────
+		var cmds []tea.Cmd
+		for i := range v.inputs {
+			if i == m.focusedIndex {
+				v.inputs[i].PromptStyle = focusedStyle
+				v.inputs[i].TextStyle = focusedStyle
+				cmds = append(cmds, v.inputs[i].Focus())
+			} else {
 				v.inputs[i].Blur()
 				v.inputs[i].PromptStyle = noStyle
 				v.inputs[i].TextStyle = noStyle
 			}
-
-			return m, tea.Batch(cmds...)
 		}
+		return m, tea.Batch(cmds...)
 	}
 
-	// Handle character input and blinking
-	cmd := updateInputs(v.inputs, msg)
-
-	return m, cmd
+	// non-KeyMsg: no change
+	return m, nil
 }
 
 func updateInputs(inputs []textinput.Model, msg tea.Msg) tea.Cmd {
@@ -313,6 +369,7 @@ func initialModel(cfg config.Config) model {
 
 	m.setupPlatformRepo = &setupPlatformRepoView{}
 	m.setupPlatformRepo.inputs = make([]textinput.Model, 2)
+	m.setupPlatformRepo.saveConfig = false
 	m.setupPlatformRepo.inputs[0] = textinput.New()
 	m.setupPlatformRepo.inputs[0].Prompt = "Platform Repo URL: "
 	m.setupPlatformRepo.inputs[0].SetValue(cfg.PlatformRepoURL)
@@ -330,7 +387,13 @@ func initialModel(cfg config.Config) model {
 	return m
 }
 
-func run(githubClientID, githubClientSecret, platformRepoURL, platformRepoGHToken string) {
+func run(
+	githubClientID,
+	githubClientSecret,
+	platformRepoURL,
+	platformRepoGHToken string,
+	saveConfig bool,
+) {
 	// expose the arguments as env variables to the docker containers
 	envVars := map[string]string{
 		"GITHUB_CLIENT_ID":           githubClientID,
@@ -338,7 +401,59 @@ func run(githubClientID, githubClientSecret, platformRepoURL, platformRepoGHToke
 		"PLATFORM_REPO_URL":          platformRepoURL,
 		"PLATFORM_REPO_GITHUB_TOKEN": platformRepoGHToken,
 	}
-	_, _ = docker.ComposeUp(context.Background(), docker.KoctlRunComposeFile, "koctl-run", envVars)
+
+	// buffer all post‐ComposeUp messages here
+	var postMsgs []string
+
+	if saveConfig {
+		const (
+			envFile    = ".env"
+			backupFile = ".env.bak"
+		)
+
+		// 1) back up existing .env (if any), but don't print yet
+		if _, err := os.Stat(envFile); err == nil {
+			if err := os.Rename(envFile, backupFile); err != nil {
+				postMsgs = append(postMsgs, fmt.Sprintf(
+					"warning: could not backup %s: %v", envFile, err,
+				))
+			} else {
+				postMsgs = append(postMsgs, fmt.Sprintf(
+					"backed up existing %s → %s", envFile, backupFile,
+				))
+			}
+		}
+
+		// 2) write new .env
+		f, err := os.Create(envFile)
+		if err != nil {
+			postMsgs = append(postMsgs, fmt.Sprintf(
+				"error: could not create %s: %v", envFile, err,
+			))
+		} else {
+			defer f.Close()
+			for k, v := range envVars {
+				fmt.Fprintf(f, "%s=%s\n", k, v)
+			}
+			postMsgs = append(postMsgs, fmt.Sprintf("wrote new %s", envFile))
+		}
+	}
+
+	// 3) actually start Docker
+	_, _ = docker.ComposeUp(
+		context.Background(),
+		docker.KoctlRunComposeFile,
+		"koctl-run",
+		envVars,
+	)
+
+	// **then** push the cursor to a new line…
+	fmt.Fprint(os.Stdout, "\r\n")
+
+	// 4) now print all the buffered messages
+	for _, msg := range postMsgs {
+		fmt.Fprintln(os.Stdout, msg)
+	}
 }
 
 func (m model) Init() tea.Cmd {
