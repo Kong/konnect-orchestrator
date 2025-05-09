@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#286FEB"))
 	blurredStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	cursorStyle         = focusedStyle
 	noStyle             = lipgloss.NewStyle()
@@ -56,20 +56,20 @@ func initialModel(c config.Config) model {
 
 		switch i {
 		case 0:
-			t.Placeholder = "GitHub URL"
+			t.Prompt = "GitHub URL: "
 			t.SetValue(c.PlatformRepoURL)
 			t.Focus()
 			t.PromptStyle = focusedStyle
 			t.TextStyle = focusedStyle
 		case 1:
-			t.Placeholder = "GitHub Token"
+			t.Prompt = "GitHub Token: "
 			t.SetValue(c.PlatformRepoGHToken)
 			t.EchoMode = textinput.EchoPassword
 			t.EchoCharacter = '•'
 		case 2:
-			t.Placeholder = "Organization Name"
+			t.Prompt = "Org Name: "
 		case 3:
-			t.Placeholder = "Konnect Token"
+			t.Prompt = "Konnect Token: "
 			t.SetValue(c.KonnectToken)
 			t.EchoMode = textinput.EchoPassword
 			t.EchoCharacter = '•'
