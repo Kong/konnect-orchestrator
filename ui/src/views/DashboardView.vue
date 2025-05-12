@@ -275,19 +275,27 @@ watch(selectedTeam, (newVal) => {
 });
 
 watch(() => githubStore.selectedRepo, async (newRepo) => {
+  console.log("Repository changed:", newRepo);
   if (newRepo) {
     try {
-      // Branches will be fetched automatically by the store
-      // Wait for branches to be loaded
-      if (githubStore.loading.value) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for any existing loading to complete
+      while (githubStore.loading.value) {
+        console.log("Waiting for previous operations to complete...");
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+
+      // Fetch branches and wait for them to load
+      console.log("Fetching branches...");
+      await githubStore.fetchBranches(true);
+      
+      console.log("Branches loaded:", githubStore.branches.length);
       
       // Set default values based on repository branches
       if (githubStore.branches.length > 0) {
         // Find default branch
         const defaultBranch = githubStore.branches.find(branch => branch.is_default);
         if (defaultBranch) {
+          console.log("Found default branch:", defaultBranch.name);
           prodBranch.value = defaultBranch.name;
           
           // Look for common dev branch names
@@ -297,6 +305,7 @@ watch(() => githubStore.selectedRepo, async (newRepo) => {
           );
           
           if (devBranch) {
+            console.log("Found dev branch:", devBranch.name);
             devBranch.value = devBranch.name;
           } else if (prodBranch.value !== defaultBranch.name) {
             // Use default branch as dev if it's not already used for prod
@@ -306,11 +315,15 @@ watch(() => githubStore.selectedRepo, async (newRepo) => {
             devBranch.value = prodBranch.value;
           }
         }
+      } else {
+        console.log("No branches found for repository");
       }
     } catch (error) {
+      console.error('Error handling repository change:', error);
       toast.error('Failed to load repository branches');
-      console.error('Error fetching branches:', error);
     }
+  } else {
+    console.log("No repository selected");
   }
 });
 
@@ -445,6 +458,7 @@ select.form-control {
   border-radius: 8px;
   border: 1px solid transparent;
   transition: border-color 0.25s;
+  color: var(--color-text-white);
 }
 
 select.form-control:hover {
