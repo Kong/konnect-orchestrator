@@ -528,10 +528,10 @@ func applyTeam(teamName string,
 			fmt.Sprintf(
 				`**Environment:** %s 
 				
-				Konnect Orchestrator has detected changes in upstream service repositories 
-				and has generated the appropriate updates.
-				
-				Review and merge this PR to create or update the deck file (s).`, envName,
+Konnect Orchestrator has detected changes in upstream service repositories 
+and has generated the appropriate updates.
+
+Review and merge this PR to create or update the deck file (s).`, envName,
 			),
 			*platformGit.GitHub,
 			nil,
