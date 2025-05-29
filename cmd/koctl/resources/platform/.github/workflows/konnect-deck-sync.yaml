@@ -76,7 +76,7 @@ jobs:
       - name: Setup deck
         uses: kong/setup-deck@v1
         with:
-          deck-version: '1.44.1'
+          deck-version: '1.47.1'
           wrapper: false
 
       - name: Run deck sync
