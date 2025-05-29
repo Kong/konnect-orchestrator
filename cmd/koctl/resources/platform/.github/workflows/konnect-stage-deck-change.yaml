@@ -28,7 +28,7 @@ jobs:
         if: steps.changed-deck-files.outputs.any_changed == 'true'
         uses: kong/setup-deck@v1
         with:
-          deck-version: '1.44.1'
+          deck-version: '1.47.1'
           wrapper: false
       
       - name: Merge and collect team/environment/service pairs
@@ -162,7 +162,7 @@ jobs:
       - name: Setup deck
         uses: kong/setup-deck@v1
         with:
-          deck-version: '1.42.0'
+          deck-version: '1.47.1'
           wrapper: false
 
       - name: Run deck diff
@@ -200,6 +200,8 @@ jobs:
 
       - name: Create PR for changes
         uses: peter-evans/create-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.KONNECT_ORCHESTRATOR_GITHUB_TOKEN }}
         with:
           title: "[Konnect] [${{ steps.extract-context.outputs.env }}] - ${{ steps.extract-context.outputs.team }} Staged decK Changes"
           branch: "stage-deck-change/${{ steps.extract-context.outputs.DIR }}"

@@ -23,7 +23,7 @@ jobs:
       - name: Setup deck
         uses: kong/setup-deck@v1
         with:
-          deck-version: '1.44.1'
+          deck-version: '1.47.1'
           wrapper: false
 
       - name: Collect and convert OAS files 
@@ -153,6 +153,8 @@ jobs:
           echo "dir=$DIR" >> $GITHUB_OUTPUT
   
       - name: Create PR for changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.KONNECT_ORCHESTRATOR_GITHUB_TOKEN }}
         uses: peter-evans/create-pull-request@v5
         with:
           title: "[Konnect] [${{ steps.extract-context.outputs.env }}] - ${{ steps.extract-context.outputs.team }} Spec to decK"
