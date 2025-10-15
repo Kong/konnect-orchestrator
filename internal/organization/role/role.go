@@ -76,8 +76,8 @@ func applyDevRoles(
 ) error {
 	// Check if the role is already assigned
 	listResp, err := rolesSvc.ListTeamRoles(ctx, teamID, &operations.ListTeamRolesQueryParamFilter{
-		RoleName:       kk.Pointer(components.StringFieldEqualsFilter{kk.Pointer("Admin")}),
-		EntityTypeName: kk.Pointer(components.StringFieldEqualsFilter{kk.Pointer("Control Planes")}),
+		RoleName:       kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Admin")}),
+		EntityTypeName: kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Control Planes")}),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list team roles: %w", err)

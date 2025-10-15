@@ -45,7 +45,7 @@ func (h *RepoHandler) ListRepositories(c *gin.Context) {
 		affiliation,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting repositories:%v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting repositories: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get repositories: " + err.Error(),
 		})
@@ -88,7 +88,7 @@ func (h *RepoHandler) ListOrganizationRepositories(c *gin.Context) {
 		visibility,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting organization repositories:%v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting organization repositories: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get organization repositories: " + err.Error(),
 		})
@@ -131,7 +131,7 @@ func (h *RepoHandler) GetRepositoryContent(c *gin.Context) {
 		repo,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error checking repository access:%v\n", err)
+		fmt.Fprintf(os.Stderr, "Error checking repository access: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to check repository access: " + err.Error(),
 		})
@@ -155,7 +155,7 @@ func (h *RepoHandler) GetRepositoryContent(c *gin.Context) {
 		ref,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting repository content:%v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting repository content: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get repository content: " + err.Error(),
 		})
@@ -196,7 +196,7 @@ func (h *RepoHandler) ListRepositoryBranches(c *gin.Context) {
 		repo,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error checking repository access: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error checking repository access: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to check repository access: " + err.Error(),
 		})
@@ -218,7 +218,7 @@ func (h *RepoHandler) ListRepositoryBranches(c *gin.Context) {
 		repo,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting repository branches: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting repository branches: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get repository branches: " + err.Error(),
 		})
@@ -257,7 +257,7 @@ func (h *RepoHandler) ListEnterpriseOrganizations(c *gin.Context) {
 		server,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting enterprise organizations: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting enterprise organizations: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get enterprise organizations: " + err.Error(),
 		})
@@ -300,7 +300,7 @@ func (h *RepoHandler) ListUserRepositories(c *gin.Context) {
 		visibility,
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting user repositories: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting user repositories: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get user repositories: " + err.Error(),
 		})
