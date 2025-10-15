@@ -53,8 +53,9 @@ func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 		return nil, nil
 	}
 
-	// Only support SSH auth for now
-	if *gitConfig.Auth.Type == "ssh" {
+	// Only support SSH and token auth for now
+	switch authType := *gitConfig.Auth.Type; authType {
+	case "ssh":
 		key, err := util.ResolveSecretValue(*gitConfig.Auth.SSH.Key)
 		if err != nil {
 			return nil, err
@@ -64,7 +65,7 @@ func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 			return nil, err
 		}
 		return publicKeys, nil
-	} else if *gitConfig.Auth.Type == "token" {
+	case "token":
 		key, err := util.ResolveSecretValue(*gitConfig.Auth.Token)
 		if err != nil {
 			return nil, err
@@ -74,9 +75,9 @@ func GetAuthMethod(gitConfig manifest.GitConfig) (transport.AuthMethod, error) {
 			Password: key,
 		}
 		return basicAuth, nil
+	default:
+		return nil, fmt.Errorf("unsupported auth type: %s", authType)
 	}
-
-	return nil, errors.New("unsupported auth type: " + *gitConfig.Auth.Type)
 }
 
 func GetRemoteFile(gitConfig manifest.GitConfig, branch, path string) ([]byte, error) {

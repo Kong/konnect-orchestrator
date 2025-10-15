@@ -110,12 +110,12 @@ func ApplyRoles(
 	cpID string,
 	envConfig manifest.Environment,
 ) error {
-	envType := EnvironmentType(envConfig.Type)
-	if envType == DEV {
+	switch envType := EnvironmentType(envConfig.Type); envType {
+	case DEV:
 		return applyDevRoles(ctx, rolesSvc, teamID, cpID, envConfig)
-	} else if envType == PROD {
+	case PROD:
 		return applyProdRoles(ctx, rolesSvc, teamID, cpID, envConfig)
+	default:
+		return nil
 	}
-
-	return nil
 }

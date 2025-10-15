@@ -47,7 +47,8 @@ type PlatformHandler struct {
 
 // NewRepoHandler creates a new RepoHandler
 func NewPlatformHandler(githubService *gh.GitHubService, platformGitConfig manifest.GitConfig,
-	teamsFilePath, orgsFilePath string) *PlatformHandler {
+	teamsFilePath, orgsFilePath string,
+) *PlatformHandler {
 	return &PlatformHandler{
 		githubService:     githubService,
 		platformGitConfig: platformGitConfig,
@@ -340,8 +341,8 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 		}
 	}
 
-	var prodBranch = "main"
-	var devBranch = "dev"
+	prodBranch := "main"
+	devBranch := "dev"
 
 	if repoInfo.ProdBranch != "" {
 		prodBranch = repoInfo.ProdBranch
@@ -412,7 +413,6 @@ func (h *PlatformHandler) AddServiceRepo(c *gin.Context) {
 		RefSpecs:   []config.RefSpec{config.RefSpec(fmt.Sprintf("%s:%s", branchRefName, branchRefName))},
 		Auth:       auth,
 	})
-
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error pushing changes": err.Error()})
 

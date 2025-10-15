@@ -24,6 +24,7 @@ type PortalsConfigService interface {
 		opts ...operations.Option) (*operations.UpdatePortalResponse, error)
 }
 
+//revive:disable-next-line exported // exported to mirror Konnect SDK naming
 type PortalPagesConfigService interface {
 	CreateDefaultContent(ctx context.Context,
 		portalID string,
