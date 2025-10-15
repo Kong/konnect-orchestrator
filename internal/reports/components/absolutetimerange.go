@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Kong/konnect-orchestrator/internal/reports/utils"
-	"github.com/Kong/sdk-konnect-go-internal/types"
+	"github.com/Kong/sdk-konnect-go/types"
 )
 
 type AbsoluteTimeRangeType string

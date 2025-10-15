@@ -4,7 +4,6 @@ go 1.23.5
 
 require (
 	github.com/Kong/sdk-konnect-go v0.10.1
-	github.com/Kong/sdk-konnect-go-internal v0.0.2-0.20250221174722-8c540a2d0b06
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/charmbracelet/lipgloss v1.1.0

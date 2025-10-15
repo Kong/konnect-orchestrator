@@ -31,10 +31,8 @@ import (
 	"github.com/Kong/konnect-orchestrator/internal/tea/runprogram"
 	"github.com/Kong/konnect-orchestrator/internal/util"
 	kk "github.com/Kong/sdk-konnect-go"
-	kkInternal "github.com/Kong/sdk-konnect-go-internal"
-	kkInternalComps "github.com/Kong/sdk-konnect-go-internal/models/components"
-	kkInternalOps "github.com/Kong/sdk-konnect-go-internal/models/operations"
 	kkComps "github.com/Kong/sdk-konnect-go/models/components"
+	kkOps "github.com/Kong/sdk-konnect-go/models/operations"
 	giturl "github.com/kubescape/go-git-url"
 )
 
@@ -271,20 +269,20 @@ func applyService(
 		return fmt.Errorf("failed to write patch file for %s: %w", serviceName, err)
 	}
 
-	internalRegionSdk := kkInternal.New(
-		kkInternal.WithSecurity(kkInternalComps.Security{
-			PersonalAccessToken: kkInternal.String(accessToken),
+	regionSdk := kk.New(
+		kk.WithSecurity(kkComps.Security{
+			PersonalAccessToken: kk.String(accessToken),
 		}),
-		kkInternal.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
+		kk.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
 	)
 
 	// We can now query for GW Services that have the `ko-api-name` tag, this will require that the
 	// APIOps pipeline in the Platform repository has ran, such that the entity is tagged properly so we can find it
 	// here. If we can't find the service, we just ignore and proceed.
-	resp, err := internalRegionSdk.Services.ListService(context.Background(),
-		kkInternalOps.ListServiceRequest{
+	resp, err := regionSdk.Services.ListService(context.Background(),
+		kkOps.ListServiceRequest{
 			ControlPlaneID: cpID,
-			Tags:           kkInternal.String("ko-api-name=" + *apiName),
+			Tags:           kk.String("ko-api-name=" + *apiName),
 		})
 	if err != nil {
 		return fmt.Errorf("failed to list services: %w", err)
@@ -306,10 +304,10 @@ func applyService(
 
 	_, err = portal.ApplyAPIConfig(
 		context.Background(),
-		internalRegionSdk.API,
-		internalRegionSdk.APISpecification,
-		internalRegionSdk.APIPublication,
-		internalRegionSdk.APIImplementation,
+		regionSdk.API,
+		regionSdk.APISpecification,
+		regionSdk.APIPublication,
+		regionSdk.APIImplementation,
 		*apiName,
 		serviceConfig,
 		serviceSpec,
@@ -333,11 +331,11 @@ func applyPortal(
 	labels map[string]string,
 ) (string, error) {
 	// V3 Portals currently require an internal SDK as the API is not yet GA
-	internalRegionSdk := kkInternal.New(
-		kkInternal.WithSecurity(kkInternalComps.Security{
-			PersonalAccessToken: kkInternal.String(accessToken),
+	regionSdk := kk.New(
+		kk.WithSecurity(kkComps.Security{
+			PersonalAccessToken: kk.String(accessToken),
 		}),
-		kkInternal.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
+		kk.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
 	)
 
 	// Apply the Developer Portal configuration for the environment
@@ -345,9 +343,9 @@ func applyPortal(
 		portalDisplayName,
 		envName,
 		envType,
-		internalRegionSdk.V3Portals,
-		internalRegionSdk.API,
-		internalRegionSdk.V3PortalPages,
+		regionSdk.Portals,
+		regionSdk.API,
+		regionSdk.Pages,
 		labels)
 	if err != nil {
 		return "", fmt.Errorf("failed to apply portal configuration: %w", err)
@@ -669,7 +667,7 @@ func applyOrganization(
 	if orgConfig.EnableCustomReports == nil || *orgConfig.EnableCustomReports {
 		for region := range regions {
 			internalRegionSdk := reports.New(
-				reports.WithSecurity(kkInternalComps.Security{
+				reports.WithSecurity(kkComps.Security{
 					PersonalAccessToken: kk.String(accessToken),
 				}),
 				reports.WithServerURL(fmt.Sprintf("https://%s.api.konghq.com", region)),
@@ -684,16 +682,16 @@ func applyOrganization(
 		}
 	}
 
-	internalRegionSdk := kkInternal.New(
-		kkInternal.WithSecurity(kkInternalComps.Security{
-			PersonalAccessToken: kk.String(accessToken),
-		}),
-	)
+	//internalRegionSdk := kkInternal.New(
+	//	kkInternal.WithSecurity(kkInternalComps.Security{
+	//		PersonalAccessToken: kk.String(accessToken),
+	//	}),
+	//)
 
 	fmt.Printf("Applying notification configuration settings to organization %s\n", orgName)
 	err = notification.ApplyNotificationsConfig(
 		context.Background(),
-		internalRegionSdk.Notifications,
+		sdk.Notifications,
 		orgConfig.Notifications)
 	if err != nil {
 		return fmt.Errorf("failed to apply notification configurations for organization %s: %w", orgName, err)

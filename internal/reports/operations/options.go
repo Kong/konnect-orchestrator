@@ -5,7 +5,7 @@ package operations
 import (
 	"errors"
 	"github.com/Kong/konnect-orchestrator/internal/reports/utils"
-	"github.com/Kong/sdk-konnect-go-internal/retry"
+	"github.com/Kong/sdk-konnect-go/retry"
 	"time"
 )
 
