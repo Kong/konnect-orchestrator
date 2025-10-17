@@ -41,8 +41,8 @@ func applyProdRoles(
 ) error {
 	// Check if the role is already assigned
 	listResp, err := rolesSvc.ListTeamRoles(ctx, teamID, &operations.ListTeamRolesQueryParamFilter{
-		RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Viewer")),
-		EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
+		RoleName:       kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Viewer")}),
+		EntityTypeName: kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Control Planes")}),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list team roles: %w", err)
@@ -58,7 +58,7 @@ func applyProdRoles(
 	_, err = rolesSvc.TeamsAssignRole(ctx, teamID, &components.AssignRole{
 		RoleName:       kk.Pointer(components.RoleName("Viewer")),
 		EntityID:       kk.Pointer(cpID),
-		EntityRegion:   kk.Pointer(components.EntityRegion(envConfig.Region)),
+		EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion(envConfig.Region)),
 		EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
 	})
 	if err != nil {
@@ -76,8 +76,8 @@ func applyDevRoles(
 ) error {
 	// Check if the role is already assigned
 	listResp, err := rolesSvc.ListTeamRoles(ctx, teamID, &operations.ListTeamRolesQueryParamFilter{
-		RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Admin")),
-		EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
+		RoleName:       kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Admin")}),
+		EntityTypeName: kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Control Planes")}),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list team roles: %w", err)
@@ -93,7 +93,7 @@ func applyDevRoles(
 	_, err = rolesSvc.TeamsAssignRole(ctx, teamID, &components.AssignRole{
 		RoleName:       kk.Pointer(components.RoleName("Admin")),
 		EntityID:       kk.Pointer(cpID),
-		EntityRegion:   kk.Pointer(components.EntityRegion(envConfig.Region)),
+		EntityRegion:   kk.Pointer(components.AssignRoleEntityRegion(envConfig.Region)),
 		EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
 	})
 	if err != nil {
@@ -110,12 +110,12 @@ func ApplyRoles(
 	cpID string,
 	envConfig manifest.Environment,
 ) error {
-	envType := EnvironmentType(envConfig.Type)
-	if envType == DEV {
+	switch envType := EnvironmentType(envConfig.Type); envType {
+	case DEV:
 		return applyDevRoles(ctx, rolesSvc, teamID, cpID, envConfig)
-	} else if envType == PROD {
+	case PROD:
 		return applyProdRoles(ctx, rolesSvc, teamID, cpID, envConfig)
+	default:
+		return nil
 	}
-
-	return nil
 }

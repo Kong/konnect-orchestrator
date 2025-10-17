@@ -35,7 +35,6 @@ func TestApplyControlPlane(t *testing.T) {
 				m.On("ListControlPlanes",
 					mock.Anything,
 					mock.Anything,
-					mock.Anything,
 				).Return(&operations.ListControlPlanesResponse{
 					ListControlPlanesResponse: &components.ListControlPlanesResponse{
 						Data: []components.ControlPlane{},
@@ -47,11 +46,11 @@ func TestApplyControlPlane(t *testing.T) {
 					mock.MatchedBy(func(req components.CreateControlPlaneRequest) bool {
 						return req.Name == "team1-DEV" &&
 							*req.Description == "Control plane for team team1 in environment DEV" &&
-							*req.ClusterType == components.CreateControlPlaneRequestClusterType("CLUSTER_TYPE_CONTROL_PLANE") &&
+							req.ClusterType != nil &&
+							*req.ClusterType == components.CreateControlPlaneRequestClusterType("CLUSTER_TYPE_SERVERLESS") &&
 							req.Labels["env"] == "DEV" &&
 							req.Labels["team"] == "team1"
 					}),
-					mock.Anything,
 				).Return(
 					&operations.CreateControlPlaneResponse{
 						ControlPlane: &components.ControlPlane{
@@ -72,7 +71,6 @@ func TestApplyControlPlane(t *testing.T) {
 			teamName: "team1",
 			setup: func(m *MockControlPlaneService) {
 				m.On("ListControlPlanes",
-					mock.Anything,
 					mock.Anything,
 					mock.Anything,
 				).Return(&operations.ListControlPlanesResponse{
@@ -96,7 +94,6 @@ func TestApplyControlPlane(t *testing.T) {
 							req.Labels["env"] == "PROD" &&
 							req.Labels["team"] == "team1"
 					}),
-					mock.Anything,
 				).Return(&operations.UpdateControlPlaneResponse{}, nil)
 			},
 			wantErr:    false,
@@ -111,7 +108,7 @@ func TestApplyControlPlane(t *testing.T) {
 			},
 			teamName: "team1",
 			setup: func(m *MockControlPlaneService) {
-				m.On("ListControlPlanes", mock.Anything, mock.Anything, mock.Anything).Return(nil, fmt.Errorf("list error"))
+				m.On("ListControlPlanes", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("list error"))
 			},
 			wantErr:    true,
 			expectedID: "",
@@ -123,7 +120,6 @@ func TestApplyControlPlane(t *testing.T) {
 			mockCPSvc := &MockControlPlaneService{}
 			tt.setup(mockCPSvc)
 
-			fmt.Println(mockCPSvc, tt.envName, tt.env, tt.teamName)
 			id, err := ApplyControlPlane(context.Background(), mockCPSvc, tt.envName, tt.env, tt.teamName)
 
 			if tt.wantErr {

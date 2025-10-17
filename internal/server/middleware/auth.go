@@ -4,20 +4,18 @@ import (
 	"net/http"
 	"time"
 
-	models "github.com/Kong/konnect-orchestrator/internal/git/github"
+	gh "github.com/Kong/konnect-orchestrator/internal/git/github"
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/v60/github"
-
-	services "github.com/Kong/konnect-orchestrator/internal/git/github"
 )
 
 // AuthMiddleware is a middleware for authentication
 type AuthMiddleware struct {
-	authService *services.AuthService
+	authService *gh.AuthService
 }
 
 // NewAuthMiddleware creates a new AuthMiddleware
-func NewAuthMiddleware(authService *services.AuthService) *AuthMiddleware {
+func NewAuthMiddleware(authService *gh.AuthService) *AuthMiddleware {
 	return &AuthMiddleware{
 		authService: authService,
 	}
@@ -67,8 +65,8 @@ func (m *AuthMiddleware) RefreshToken() gin.HandlerFunc {
 		}
 
 		// Check if the token is about to expire
-		claims := user.(*models.JWTClaims)
-		if time.Unix(claims.ExpiresAt, 0).Sub(time.Now()) < 24*time.Hour {
+		claims := user.(*gh.JWTClaims)
+		if time.Until(time.Unix(claims.ExpiresAt, 0)) < 24*time.Hour {
 			// Token is about to expire, generate a new one
 			newToken, err := m.authService.GenerateJWT(
 				&github.User{

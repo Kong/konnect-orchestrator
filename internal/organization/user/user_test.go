@@ -27,7 +27,8 @@ func TestApplyUsers(t *testing.T) {
 				firstListCall := us.On("ListUsers", mock.Anything, mock.MatchedBy(func(req operations.ListUsersRequest) bool {
 					return req.Filter != nil &&
 						req.Filter.Email != nil &&
-						*req.Filter.Email.StringFieldEqualsFilter.Str == "new@example.com"
+						req.Filter.Email.Eq != nil &&
+						*req.Filter.Email.Eq == "new@example.com"
 				})).Return(&operations.ListUsersResponse{
 					UserCollection: &components.UserCollection{
 						Data: []components.User{},
@@ -43,7 +44,8 @@ func TestApplyUsers(t *testing.T) {
 				secondListCall := us.On("ListUsers", mock.Anything, mock.MatchedBy(func(req operations.ListUsersRequest) bool {
 					return req.Filter != nil &&
 						req.Filter.Email != nil &&
-						*req.Filter.Email.StringFieldEqualsFilter.Str == "new@example.com"
+						req.Filter.Email.Eq != nil &&
+						*req.Filter.Email.Eq == "new@example.com"
 				})).Return(&operations.ListUsersResponse{
 					UserCollection: &components.UserCollection{
 						Data: []components.User{
@@ -69,7 +71,8 @@ func TestApplyUsers(t *testing.T) {
 				us.On("ListUsers", mock.Anything, mock.MatchedBy(func(req operations.ListUsersRequest) bool {
 					return req.Filter != nil &&
 						req.Filter.Email != nil &&
-						*req.Filter.Email.StringFieldEqualsFilter.Str == "existing@example.com"
+						req.Filter.Email.Eq != nil &&
+						*req.Filter.Email.Eq == "existing@example.com"
 				})).Return(&operations.ListUsersResponse{
 					UserCollection: &components.UserCollection{
 						Data: []components.User{

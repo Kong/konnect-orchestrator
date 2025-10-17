@@ -6,9 +6,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
-	kk "github.com/Kong/sdk-konnect-go-internal"
-	"github.com/Kong/sdk-konnect-go-internal/models/components"
-	"github.com/Kong/sdk-konnect-go-internal/models/operations"
+	kk "github.com/Kong/sdk-konnect-go"
+	"github.com/Kong/sdk-konnect-go/models/components"
+	"github.com/Kong/sdk-konnect-go/models/operations"
 )
 
 type PortalsConfigService interface {
@@ -16,14 +16,15 @@ type PortalsConfigService interface {
 		request operations.ListPortalsRequest,
 		opts ...operations.Option) (*operations.ListPortalsResponse, error)
 	CreatePortal(ctx context.Context,
-		request components.CreatePortalV3,
+		request components.CreatePortal,
 		opts ...operations.Option) (*operations.CreatePortalResponse, error)
 	UpdatePortal(ctx context.Context,
 		portalID string,
-		updatePortalV3 components.UpdatePortalV3,
+		updatePortalV3 components.UpdatePortal,
 		opts ...operations.Option) (*operations.UpdatePortalResponse, error)
 }
 
+//revive:disable-next-line exported // exported to mirror Konnect SDK naming
 type PortalPagesConfigService interface {
 	CreateDefaultContent(ctx context.Context,
 		portalID string,
@@ -88,9 +89,7 @@ func ApplyPortalConfig(
 	portals, err := portalsConfigService.ListPortals(ctx, operations.ListPortalsRequest{
 		Filter: &components.PortalFilterParameters{
 			Name: &components.StringFieldFilter{
-				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-					Str: kk.String(envName),
-				},
+				Eq: kk.String(envName),
 			},
 		},
 	})
@@ -106,9 +105,9 @@ func ApplyPortalConfig(
 		portalDisplayName = portalDisplayName + " (" + envName + ")"
 	}
 
-	if len(portals.ListPortalsResponseV3.Data) < 1 {
-		newPortal, err := portalsConfigService.CreatePortal(ctx, components.CreatePortalV3{
-			Name:                             envName,
+	if len(portals.ListPortalsResponse.Data) < 1 {
+		newPortal, err := portalsConfigService.CreatePortal(ctx, components.CreatePortal{
+			Name:                             kk.String(envName),
 			DisplayName:                      kk.String(portalDisplayName),
 			AuthenticationEnabled:            kk.Bool(authEnabled),
 			DefaultAPIVisibility:             components.DefaultAPIVisibility(visibility).ToPointer(),
@@ -119,18 +118,19 @@ func ApplyPortalConfig(
 		if err != nil {
 			return "", err
 		}
-		portalID = newPortal.PortalResponseV3.ID
+		portalID = newPortal.PortalResponse.ID
 		_, err = pagesConfigService.CreateDefaultContent(ctx, portalID)
 		if err != nil {
 			return "", err
 		}
 	} else {
-		portalID = portals.ListPortalsResponseV3.Data[0].ID
-		_, err = portalsConfigService.UpdatePortal(ctx, portalID, components.UpdatePortalV3{
+		portalID = portals.ListPortalsResponse.Data[0].ID
+		_, err = portalsConfigService.UpdatePortal(ctx, portalID, components.UpdatePortal{
+			Name:                             kk.String(envName),
 			DisplayName:                      kk.String(envName),
 			AuthenticationEnabled:            kk.Bool(authEnabled),
-			DefaultAPIVisibility:             components.UpdatePortalV3DefaultAPIVisibility(visibility).ToPointer(),
-			DefaultPageVisibility:            components.UpdatePortalV3DefaultPageVisibility(visibility).ToPointer(),
+			DefaultAPIVisibility:             components.UpdatePortalDefaultAPIVisibility(visibility).ToPointer(),
+			DefaultPageVisibility:            components.UpdatePortalDefaultPageVisibility(visibility).ToPointer(),
 			DefaultApplicationAuthStrategyID: nil,
 			Labels:                           toPortalLabels(labels),
 		})
@@ -175,14 +175,10 @@ func ApplyAPIConfig(ctx context.Context,
 		operations.ListApisRequest{
 			Filter: &components.APIFilterParameters{
 				Name: &components.StringFieldFilter{
-					StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-						Str: kk.String(apiName),
-					},
+					Eq: kk.String(apiName),
 				},
 				Version: &components.StringFieldFilter{
-					StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-						Str: kk.String(version),
-					},
+					Eq: kk.String(version),
 				},
 			},
 		})
@@ -196,7 +192,7 @@ func ApplyAPIConfig(ctx context.Context,
 	if len(resp.ListAPIResponse.Data) < 1 {
 		createResponse, err := apisConfigService.CreateAPI(ctx,
 			components.CreateAPIRequest{
-				Name:        apiName,
+				Name:        kk.String(apiName),
 				Version:     kk.String(version),
 				Description: kk.String(*serviceConfig.Description),
 				Labels:      labels,
@@ -231,8 +227,8 @@ func ApplyAPIConfig(ctx context.Context,
 	}
 	if len(listSpecResponse.ListAPISpecResponse.Data) < 1 {
 		_, err = apiSpecsConfigService.CreateAPISpec(ctx, api.ID, components.CreateAPISpecRequest{
-			Content: string(rawSpec),
-			Type:    components.APISpecTypeOas3.ToPointer(),
+			Content: kk.String(string(rawSpec)),
+			Type:    components.CreateAPISpecRequestAPISpecTypeOas3.ToPointer(),
 		})
 		if err != nil {
 			return "", err
@@ -243,7 +239,7 @@ func ApplyAPIConfig(ctx context.Context,
 			SpecID: listSpecResponse.ListAPISpecResponse.Data[0].ID,
 			APISpec: components.APISpec{
 				Content: kk.String(string(rawSpec)),
-				Type:    components.APISpecTypeOas3.ToPointer(),
+				Type:    components.APISpecAPISpecTypeOas3.ToPointer(),
 			},
 		})
 		if err != nil {
@@ -273,19 +269,13 @@ func ApplyAPIConfig(ctx context.Context,
 	apiImpls, err := apiImplementationConfigService.ListAPIImplementations(ctx, operations.ListAPIImplementationsRequest{
 		Filter: &components.APIImplementationFilterParameters{
 			APIID: &components.UUIDFieldFilter{
-				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-					Str: kk.String(api.ID),
-				},
+				Eq: kk.String(api.ID),
 			},
 			ControlPlaneID: &components.UUIDFieldFilter{
-				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-					Str: kk.String(cpID),
-				},
+				Eq: kk.String(cpID),
 			},
 			ServiceID: &components.UUIDFieldFilter{
-				StringFieldEqualsFilter: &components.StringFieldEqualsFilter{
-					Str: kk.String(gwSvcID),
-				},
+				Eq: kk.String(gwSvcID),
 			},
 		},
 	})
@@ -295,10 +285,12 @@ func ApplyAPIConfig(ctx context.Context,
 
 	if len(apiImpls.ListAPIImplementationsResponse.Data) < 1 {
 		_, err = apiImplementationConfigService.CreateAPIImplementation(ctx, api.ID, components.APIImplementation{
-			Service: components.APIImplementationService{
-				ControlPlaneID: cpID,
-				ID:             gwSvcID,
-			},
+			ServiceReference: kk.Pointer(components.ServiceReference{
+				Service: kk.Pointer(components.APIImplementationService{
+					ControlPlaneID: cpID,
+					ID:             gwSvcID,
+				}),
+			}),
 		})
 		if err != nil {
 			return "", err

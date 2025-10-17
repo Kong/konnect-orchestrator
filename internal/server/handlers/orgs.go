@@ -39,7 +39,7 @@ func (h *OrgHandler) ListOrganizations(c *gin.Context) {
 		githubToken.(string),
 	)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Error getting organizations: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error getting organizations: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to get organizations: " + err.Error(),
 		})

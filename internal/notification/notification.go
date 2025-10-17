@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/Kong/konnect-orchestrator/internal/manifest"
-	"github.com/Kong/sdk-konnect-go-internal/models/components"
-	"github.com/Kong/sdk-konnect-go-internal/models/operations"
+	"github.com/Kong/sdk-konnect-go/models/components"
+	"github.com/Kong/sdk-konnect-go/models/operations"
 )
 
 type NotificationsService interface {

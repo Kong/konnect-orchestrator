@@ -12,8 +12,8 @@ import (
 	operationsReports "github.com/Kong/konnect-orchestrator/internal/reports/operations"
 	sdkErrorsReports "github.com/Kong/konnect-orchestrator/internal/reports/sdkerrors"
 	"github.com/Kong/konnect-orchestrator/internal/reports/utils"
-	"github.com/Kong/sdk-konnect-go-internal/models/sdkerrors"
-	"github.com/Kong/sdk-konnect-go-internal/retry"
+	"github.com/Kong/sdk-konnect-go/models/sdkerrors"
+	"github.com/Kong/sdk-konnect-go/retry"
 )
 
 type CustomReports struct {

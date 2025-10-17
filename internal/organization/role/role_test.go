@@ -34,8 +34,8 @@ func TestApplyRoles(t *testing.T) {
 					mock.Anything,
 					"team-123",
 					&operations.ListTeamRolesQueryParamFilter{
-						RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Admin")),
-						EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
+						RoleName:       kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Admin")}),
+						EntityTypeName: kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Control Planes")}),
 					},
 				).Return(&operations.ListTeamRolesResponse{
 					AssignedRoleCollection: &components.AssignedRoleCollection{
@@ -50,7 +50,7 @@ func TestApplyRoles(t *testing.T) {
 					&components.AssignRole{
 						RoleName:       kk.Pointer(components.RoleName("Admin")),
 						EntityID:       kk.Pointer("cp-123"),
-						EntityRegion:   kk.Pointer(components.EntityRegion("us")),
+						EntityRegion:   kk.Pointer(components.AssignRoleEntityRegionUs),
 						EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
 					},
 				).Return(&operations.TeamsAssignRoleResponse{}, nil)
@@ -68,8 +68,8 @@ func TestApplyRoles(t *testing.T) {
 					mock.Anything,
 					"team-123",
 					&operations.ListTeamRolesQueryParamFilter{
-						RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Admin")),
-						EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
+						RoleName:       kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Admin")}),
+						EntityTypeName: kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Control Planes")}),
 					},
 				).Return(&operations.ListTeamRolesResponse{
 					AssignedRoleCollection: &components.AssignedRoleCollection{
@@ -95,8 +95,8 @@ func TestApplyRoles(t *testing.T) {
 					mock.Anything,
 					"team-123",
 					&operations.ListTeamRolesQueryParamFilter{
-						RoleName:       kk.Pointer(components.CreateStringFieldEqualsFilterStr("Viewer")),
-						EntityTypeName: kk.Pointer(components.CreateStringFieldEqualsFilterStr("Control Planes")),
+						RoleName:       kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Viewer")}),
+						EntityTypeName: kk.Pointer(components.StringFieldEqualsFilter{Eq: kk.Pointer("Control Planes")}),
 					},
 				).Return(&operations.ListTeamRolesResponse{
 					AssignedRoleCollection: &components.AssignedRoleCollection{
@@ -110,7 +110,7 @@ func TestApplyRoles(t *testing.T) {
 					&components.AssignRole{
 						RoleName:       kk.Pointer(components.RoleName("Viewer")),
 						EntityID:       kk.Pointer("cp-123"),
-						EntityRegion:   kk.Pointer(components.EntityRegion("us")),
+						EntityRegion:   kk.Pointer(components.AssignRoleEntityRegionUs),
 						EntityTypeName: kk.Pointer(components.EntityTypeName("Control Planes")),
 					},
 				).Return(&operations.TeamsAssignRoleResponse{}, nil)

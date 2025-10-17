@@ -31,7 +31,7 @@ type AuthenticationSettingsService interface {
 
 type IdentityProviderConfigService interface {
 	GetIdentityProviders(ctx context.Context,
-		filter *operations.Filter,
+		filter *operations.QueryParamFilter,
 		opts ...operations.Option) (*operations.GetIdentityProvidersResponse, error)
 	CreateIdentityProvider(ctx context.Context,
 		request components.CreateIdentityProvider,
@@ -100,8 +100,10 @@ func ApplyAuthSettings(
 	if err != nil {
 		return fmt.Errorf("failed to create OIDC provider: %w", err)
 	}
-	oidcQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.Filter{
-		Type: &components.StringFieldEqualsFilter{Str: kk.String("oidc")},
+	oidcQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.QueryParamFilter{
+		Type: &components.StringFieldEqualsFilter{
+			Eq: kk.String("oidc"),
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to get saml identity providers: %w", err)
@@ -115,8 +117,8 @@ func ApplyAuthSettings(
 	// Now apply the SAML configuration.
 	// Now query for an existing SAML provider specifically, since we'll manage it
 	//	differently then OIDC due to Konnect API limitations
-	samlQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.Filter{
-		Type: &components.StringFieldEqualsFilter{Str: kk.String("saml")},
+	samlQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.QueryParamFilter{
+		Type: &components.StringFieldEqualsFilter{Eq: kk.String("saml")},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to get saml identity providers: %w", err)
@@ -166,8 +168,8 @@ func ApplyAuthSettings(
 				return fmt.Errorf("failed to create saml provider: %w", err)
 			}
 		}
-		samlQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.Filter{
-			Type: &components.StringFieldEqualsFilter{Str: kk.String("saml")},
+		samlQueryResponse, err := idpSvc.GetIdentityProviders(ctx, &operations.QueryParamFilter{
+			Type: &components.StringFieldEqualsFilter{Eq: kk.String("saml")},
 		})
 		if err != nil {
 			return fmt.Errorf("failed to get saml identity providers: %w", err)

@@ -185,7 +185,13 @@ func (h *AuthHandler) Success(c *gin.Context) {
 	// Store the CSRF token in session
 	session := sessions.Default(c)
 	session.Set("csrf_token", csrfToken)
-	session.Save()
+	if err := session.Save(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to save session: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to persist session",
+		})
+		return
+	}
 
 	// For successful authentication, return the token and CSRF token
 	c.JSON(http.StatusOK, gin.H{
@@ -229,7 +235,13 @@ func (h *AuthHandler) VerifyCode(c *gin.Context) {
 	// Store the CSRF token in session
 	session := sessions.Default(c)
 	session.Set("csrf_token", csrfToken)
-	session.Save()
+	if err := session.Save(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to save session: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to persist session",
+		})
+		return
+	}
 
 	// Return success and the CSRF token
 	c.JSON(http.StatusOK, gin.H{
@@ -254,7 +266,13 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	// Clear the session
 	session := sessions.Default(c)
 	session.Clear()
-	session.Save()
+	if err := session.Save(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to save session: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to clear session",
+		})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Logged out successfully",
@@ -318,7 +336,13 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	// Update the CSRF token in session
 	session := sessions.Default(c)
 	session.Set("csrf_token", csrfToken)
-	session.Save()
+	if err := session.Save(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to save session: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to persist session",
+		})
+		return
+	}
 
 	// Set the token in a cookie for web clients
 	c.SetCookie("auth_token", jwtToken, int(24*time.Hour.Seconds()), "/", "", false, true)

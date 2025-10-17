@@ -120,7 +120,6 @@ func (s *AuthService) ValidateToken(tokenString string) (*JWTClaims, error) {
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}),
 		jwt.WithLeeway(5*time.Second), // Allow for clock skew
 	)
-
 	if err != nil {
 		return nil, err
 	}

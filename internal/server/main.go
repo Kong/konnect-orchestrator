@@ -35,7 +35,8 @@ func validateConfig(c *config.Config) error {
 }
 
 func RunServer(platformGitConfig manifest.GitConfig,
-	teamsConfigPath, orgsConfigPath, version, commit, date string) error {
+	teamsConfigPath, orgsConfigPath, version, commit, date string,
+) error {
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -65,8 +66,9 @@ func RunServer(platformGitConfig manifest.GitConfig,
 
 	// Set up server
 	server := &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
-		Handler: router,
+		Addr:              fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
+		Handler:           router,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -111,7 +113,7 @@ func setupRouter(
 	router := gin.Default()
 
 	// Load HTML templates
-	//router.LoadHTMLGlob("templates/*")
+	// router.LoadHTMLGlob("templates/*")
 
 	// Set up CSRF protection with cookie sessions
 	store := cookie.NewStore([]byte(cfg.SessionSecret))
@@ -172,10 +174,8 @@ func setupRouter(
 		// Any POST, PUT, DELETE or PATCH requests need CSRF protection
 		apiWrite := api.Group("/")
 		apiWrite.Use(csrfProtected())
-		{
-			// Add any write operations here (POST, PUT, DELETE, PATCH)
-			// Example: apiWrite.POST("/repos/:owner/:repo/contents/*path", repoHandler.CreateContent)
-		}
+		// Add write operations here when needed, for example:
+		// apiWrite.POST("/repos/:owner/:repo/contents/*path", repoHandler.CreateContent)
 	}
 
 	return router

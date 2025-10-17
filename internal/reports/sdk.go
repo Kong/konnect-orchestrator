@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"github.com/Kong/konnect-orchestrator/internal/reports/hooks"
 	"github.com/Kong/konnect-orchestrator/internal/reports/utils"
-	"github.com/Kong/sdk-konnect-go-internal/models/components"
-	"github.com/Kong/sdk-konnect-go-internal/retry"
+	"github.com/Kong/sdk-konnect-go/models/components"
+	"github.com/Kong/sdk-konnect-go/retry"
 	"net/http"
 	"time"
 )
@@ -148,9 +148,9 @@ func New(opts ...SDKOption) *SDK {
 		sdkConfiguration: sdkConfiguration{
 			Language:          "go",
 			OpenAPIDocVersion: "0.0.1",
-			SDKVersion:        "0.0.1",
+			SDKVersion:        "0.10.0",
 			GenVersion:        "2.533.0",
-			UserAgent:         "speakeasy-sdk/go 0.0.1 2.533.0 0.0.1 github.com/Kong/sdk-konnect-go-internal",
+			UserAgent:         "speakeasy-sdk/go 0.0.1 2.533.0 0.0.1 github.com/Kong/sdk-konnect-go",
 			Hooks:             hooks.New(),
 		},
 	}

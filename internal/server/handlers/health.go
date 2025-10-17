@@ -7,8 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var applyHealthValue string
-
 type HealthHandler struct {
 	Version string
 	Commit  string

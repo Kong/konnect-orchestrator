@@ -19,6 +19,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
+//revive:disable-next-line exported // exported for use by other packages with descriptive name
 type GitHubService struct {
 	authService *AuthService
 }
@@ -32,7 +33,8 @@ func NewGitHubService(authService *AuthService) *GitHubService {
 
 func CreateRepo(ctx context.Context,
 	owner, repo string,
-	githubConfig manifest.GitHubConfig) error {
+	githubConfig manifest.GitHubConfig,
+) error {
 	token, err := util.ResolveSecretValue(*githubConfig.Token)
 	if err != nil {
 		return err
@@ -171,7 +173,7 @@ func (s *GitHubService) GetRepositories(ctx context.Context, token, visibility, 
 	client := s.createClient(ctx, token)
 
 	// Set up options for listing repositories
-	opts := &github.RepositoryListOptions{
+	opts := &github.RepositoryListByAuthenticatedUserOptions{
 		Visibility:  visibility,  // Can be "all", "public", or "private"
 		Affiliation: affiliation, // Can be "owner", "collaborator", "organization_member", or a combination
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -179,7 +181,7 @@ func (s *GitHubService) GetRepositories(ctx context.Context, token, visibility, 
 
 	var allRepos []Repository
 	for {
-		repos, resp, err := client.Repositories.List(ctx, "", opts)
+		repos, resp, err := client.Repositories.ListByAuthenticatedUser(ctx, opts)
 		if err != nil {
 			return nil, err
 		}

@@ -88,6 +88,7 @@ func runComposeCmd(ctx context.Context, instance *ComposeInstance, args ...strin
 		"--file", "docker-compose.yaml",
 	},
 		args...)
+	//nolint:gosec // composed arguments are passed as a slice, preventing shell injection
 	cmd := exec.CommandContext(ctx, "docker", append([]string{"compose"}, fullArgs...)...)
 	cmd.Dir = instance.Directory
 	env := os.Environ()

@@ -38,12 +38,10 @@ type User struct {
 }
 
 func lookupUserByEmail(ctx context.Context, userSvc Service, email string) (exists bool, userID string, err error) {
-	equalsFilter := components.CreateStringFieldEqualsFilterStr(email)
 	listResp, err := userSvc.ListUsers(ctx, operations.ListUsersRequest{
 		Filter: &operations.ListUsersQueryParamFilter{
-			Email: &components.StringFieldFilter{
-				StringFieldEqualsFilter: &equalsFilter,
-				Type:                    components.StringFieldFilterTypeStringFieldEqualsFilter,
+			Email: &components.LegacyStringFieldFilter{
+				Eq: &email,
 			},
 		},
 	})
