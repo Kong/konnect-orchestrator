@@ -224,6 +224,7 @@ export const useGithubStore = defineStore('github', () => {
   async function fetchBranches(forceRefresh = false) {
     // Skip if no repository selected
     if (!currentRepo.value) {
+      console.log('No repository selected, clearing branches');
       branches.value = [];
       return [];
     }
@@ -243,22 +244,38 @@ export const useGithubStore = defineStore('github', () => {
     lastFetchedRepo.value = selectedRepo.value;
     
     const [owner, repo] = currentRepo.value.full_name.split('/');
+    console.log(`Fetching branches for ${owner}/${repo}`);
     
-    // Execute the API request
-    const response = await branchesRequest.execute(
-      () => api.repos.getRepoBranches(owner, repo),
-      {
-        defaultErrorMsg: 'Failed to load repository branches',
-        defaultValue: { branches: [] }
+    try {
+      // Execute the API request
+      const response = await branchesRequest.execute(
+        () => api.repos.getRepoBranches(owner, repo),
+        {
+          defaultErrorMsg: 'Failed to load repository branches',
+          defaultValue: { branches: [] }
+        }
+      );
+      
+      console.log('Branches API response:', response);
+      
+      if (!response || !Array.isArray(response.branches)) {
+        console.error('Invalid branches response format:', response);
+        throw new Error('Invalid branches response format');
       }
-    );
-    
-    // Update cache timestamp
-    lastFetchTime.value.branches = Date.now();
-    
-    branches.value = response.branches || [];
-    
-    return branches.value;
+      
+      // Update cache timestamp
+      lastFetchTime.value.branches = Date.now();
+      
+      branches.value = response.branches;
+      console.log(`Loaded ${branches.value.length} branches`);
+      
+      return branches.value;
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+      error.value = error.message || 'Failed to load repository branches';
+      branches.value = [];
+      throw error;
+    }
   }
 
   async function fetchPullRequests(forceRefresh = false) {
@@ -297,16 +314,24 @@ export const useGithubStore = defineStore('github', () => {
     fetchRepositories();
   }
 
-  function selectRepository(repoFullName) {
+  async function selectRepository(repoFullName) {
     if (selectedRepo.value === repoFullName) {
       return; // No change needed
     }
     
+    console.log(`Selecting repository: ${repoFullName}`);
     selectedRepo.value = repoFullName;
     branches.value = []; // Clear branches when changing repository
     
-    // Fetch branches for the selected repository
-    fetchBranches();
+    if (repoFullName) {
+      try {
+        // Fetch branches for the selected repository and await the result
+        await fetchBranches(true); // Force refresh when explicitly selecting a repo
+      } catch (error) {
+        console.error('Failed to fetch branches during repository selection:', error);
+        // Don't throw here to prevent the UI from breaking if branch fetch fails
+      }
+    }
   }
 
   async function fetchRepoContent(path = '', ref = '') {
