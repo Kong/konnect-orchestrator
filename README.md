@@ -1,26 +1,12 @@
-# konnect-orchestrator
+# Konnect Orchestrator (retired)
 
-> :warning: **WARNING: This is a work in progress tool. Do not use in production. The tool is under
-heavy development and the API and behavior are subject to change.**
+> [!WARNING]
+> Konnect Orchestrator (`koctl`) has been retired and is no longer maintained.
+> Do not use it for new implementations.
 
-## Installation
+See the [Konnect Reference Platform](https://developer.konghq.com/konnect-reference-platform/)
+for the current example of federated API platform management using supported
+Kong tooling, including [kongctl](https://developer.konghq.com/kongctl/) and
+[decK](https://developer.konghq.com/deck/).
 
-### macOS
-
-If you are on macOS, install `koctl` using brew:
-
-```shell
-brew install kong/konnect-orchestrator/koctl
-```
-
-### Linux
-
-If you are Linux, download the proper binaries from the  
-GitHub [release page](https://github.com/Kong/konnect-orchestrator/releases)
-and unpack it locally.
-
-### Windows
-
-If you are on Windows, you can download the binary from the 
-GitHub [release page](https://github.com/Kong/konnect-orchestrator/releases)
-and install it locally.
+This repository is retained for historical reference.
